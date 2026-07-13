@@ -10,6 +10,7 @@ deploy/argocd/
 │   ├── project.yaml     # AppProject "banking" (allowed repos + namespaces)
 │   └── root-app.yaml    # app-of-apps → watches apps/ and creates everything below
 └── apps/
+    ├── storage.yaml                   # gp3 default StorageClass (+ un-default gp2)
     ├── banking-platform.yaml          # our umbrella Helm chart  → ns banking
     ├── cert-manager.yaml              # Let's Encrypt TLS         → ns cert-manager
     └── observability/
@@ -43,7 +44,7 @@ Application. Watch them appear:
 
 ```bash
 kubectl -n argocd get applications
-# platform-root, banking-platform, cert-manager,
+# platform-root, cluster-storage, banking-platform, cert-manager,
 # kube-prometheus-stack, loki-stack, tempo, otel-collector, observability-extras
 ```
 

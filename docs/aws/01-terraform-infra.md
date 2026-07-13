@@ -196,45 +196,31 @@ kubectl get nodes
 
 ---
 
-## Step 4 — Enable the EBS CSI driver (required for PVCs)
+## Step 4 — Storage: EBS CSI driver + gp3 (already automated)
 
-Postgres and Kafka use `PersistentVolumeClaims`, so EKS needs the **EBS CSI
-driver** and a **gp3** StorageClass. Add the managed addon (with its own IRSA
-role):
+Postgres/Kafka and the observability stack use `PersistentVolumeClaims`, so the
+cluster needs the **EBS CSI driver** and a default **gp3** StorageClass. Both are
+handled for you — **no manual commands**:
 
+- **EBS CSI driver** — the `eks` module installs it as a **managed add-on** with
+  its own IRSA role (`aws-ebs-csi-driver` +
+  [modules/eks/main.tf](../../terraform/modules/eks/main.tf)). It comes up with
+  the cluster on `terraform apply`.
+- **gp3 default StorageClass** — applied via **GitOps** (kept out of Terraform so
+  Terraform stays AWS-only). The `cluster-storage` Argo CD app
+  ([deploy/cluster/storage/](../../deploy/cluster/storage/)) creates `gp3` as the
+  default and un-defaults the EKS-provided `gp2`. It syncs when you bootstrap
+  Argo CD (Phase 4).
+
+Verify after the cluster + Argo CD are up:
 ```bash
-# IRSA role for the driver (one-off), then the addon:
-eksctl create iamserviceaccount --cluster banking-dev --region us-east-1 \
-  --namespace kube-system --name ebs-csi-controller-sa \
-  --role-name banking-dev-ebs-csi --attach-policy-arn \
-  arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
-  --approve --role-only
-
-aws eks create-addon --cluster-name banking-dev --addon-name aws-ebs-csi-driver \
-  --service-account-role-arn arn:aws:iam::<acct>:role/banking-dev-ebs-csi \
-  --region us-east-1
-```
-
-Create a **gp3** default StorageClass:
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: gp3
-  annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
-provisioner: ebs.csi.aws.com
-volumeBindingMode: WaitForFirstConsumer
-parameters:
-  type: gp3
-EOF
+kubectl get storageclass
+# gp3 (default)   ebs.csi.aws.com        ...
+# gp2             kubernetes.io/aws-ebs  ...
 ```
 
 > In the Helm chart, `postgres.storageClass` / `kafka.storageClass` are empty →
 > they use the default StorageClass (this `gp3`). Set them explicitly for prod.
-> *(Roadmap: fold the EBS CSI addon into the `eks` Terraform module so this is
-> automatic.)*
 
 ---
 

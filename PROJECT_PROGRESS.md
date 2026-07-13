@@ -428,8 +428,11 @@ Author + validate only (no apply).
 ### Delivered (`terraform/`)
 - **modules/eks** — EKS via `terraform-aws-modules/eks ~> 20.24`: managed node
   group in the private subnets, **IRSA/OIDC enabled**, cluster addons (CoreDNS,
-  kube-proxy, VPC-CNI), reusing the Phase 8 cluster + node IAM roles
-  (`create_iam_role = false`). API auth mode + creator admin permissions on.
+  kube-proxy, VPC-CNI) + the **EBS CSI driver** managed add-on with its own IRSA
+  role (`AmazonEBSCSIDriverPolicy`, scoped to `kube-system:ebs-csi-controller-sa`),
+  reusing the Phase 8 cluster + node IAM roles (`create_iam_role = false`). API
+  auth mode + creator admin permissions on. (The `gp3` default StorageClass is
+  GitOps-managed — see the `cluster-storage` Argo app — keeping Terraform AWS-only.)
 - **modules/ecr** — a **single** repository (`banking-platform`) holding every
   service's images, separated by **tag prefix** (`<service>-<gitsha>`), with
   scan-on-push, AES256 encryption, and a keep-last-40 lifecycle policy.
@@ -537,6 +540,8 @@ metrics↔logs↔traces correlation. Deployed and verified on the kind cluster.
   (banking, observability, cert-manager, argocd).
 - **`bootstrap/root-app.yaml`** — the app-of-apps root (`platform-root`); watches
   `deploy/argocd/apps/` recursively and creates every child Application.
+- **`apps/storage.yaml`** — `cluster-storage`: gp3 default StorageClass +
+  un-defaults gp2 ([deploy/cluster/storage/](deploy/cluster/storage/)).
 - **`apps/banking-platform.yaml`** — the umbrella Helm chart → ns `banking`
   (keeps the StatefulSet `volumeClaimTemplates` `ignoreDifferences`).
 - **`apps/cert-manager.yaml`** — jetstack cert-manager `v1.15.3` → ns
