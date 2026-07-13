@@ -36,11 +36,35 @@ terraform plan
 terraform apply
 ```
 
-## Remote state (bootstrap once)
+## Remote state (bootstrap once — BEFORE `terraform init`)
 
-`backend.tf` expects an S3 bucket `banking-platform-tfstate` with `use_lockfile`
-native locking (Terraform ≥ 1.10 — no DynamoDB). Create just the bucket once
-(console or CLI) before the first `terraform init` with the backend enabled.
+`backend.tf` stores state in an S3 bucket with `use_lockfile` native locking
+(Terraform ≥ 1.10 — no DynamoDB). Create the bucket **once**, before the first
+`terraform init` with the backend enabled:
+
+```bash
+REGION=us-east-1
+aws s3api create-bucket --bucket banking-platform-tfstate --region $REGION
+aws s3api put-bucket-versioning --bucket banking-platform-tfstate \
+  --versioning-configuration Status=Enabled
+```
+
+**Where the bucket name lives:** in each environment's `backend.tf`
+(`environments/dev/backend.tf`, `qa/`, `prod/`). All three share one bucket and
+differ only by `key`. If you want a different bucket name, change the `bucket`
+line in each:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "banking-platform-tfstate"   # 👈 your bucket name (must match the one you created)
+    key          = "dev/networking.tfstate"     #    per-env state path
+    region       = "us-east-1"
+    use_lockfile = true
+    encrypt      = true
+  }
+}
+```
 
 ## Notes
 
