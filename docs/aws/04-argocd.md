@@ -190,8 +190,8 @@ metadata:
     argocd.argoproj.io/secret-type: repository   # how repo-server discovers creds
 stringData:
   type: git
-  url: https://github.com/<you>/banking-platform.git
-  username: <github-username>
+  url: https://github.com/vijaygiduthuri/banking_application_eks.git
+  username: vijaygiduthuri
   password: ${GH_PAT}
 EOF
 ```
@@ -213,14 +213,12 @@ pattern: you apply two bootstrap files once, and a root Application creates
 everything else (`banking-platform`, `cert-manager`, and the observability apps)
 from `deploy/argocd/apps/`.
 
-### 5a — Set your repo URL (one-time)
+### 5a — Repo URL (already set)
 
-Every Application points at your git repo. Replace the placeholder, then commit:
-```bash
-grep -rl 'YOUR_GH_USER/banking-platform' deploy/argocd \
-  | xargs sed -i 's#https://github.com/YOUR_GH_USER/banking-platform.git#https://github.com/<you>/banking-platform.git#g'
-git add deploy/argocd && git commit -m "argocd: set repo URL" && git push
-```
+Every Application already points at
+`https://github.com/vijaygiduthuri/banking_application_eks.git` (committed under
+`deploy/argocd/`). Nothing to edit — just make sure Argo CD has read credentials
+for it (Step 4) if the repo is private.
 
 ### 5b — Apply the two bootstrap files
 
@@ -240,7 +238,7 @@ step shows **what those committed files contain** (identical YAML, for reference
 <summary>AppProject + banking-platform Application (contents of the committed files)</summary>
 
 ```bash
-export REPO_URL="https://github.com/<you>/banking-platform.git"
+export REPO_URL="https://github.com/vijaygiduthuri/banking_application_eks.git"
 export REVISION="main"
 ```
 
@@ -377,7 +375,7 @@ single TLS cert and needs no extra DNS records.
 
 | Symptom | Likely cause | Fix |
 | ------- | ------------ | --- |
-| App `ComparisonError: SSH agent requested but SSH_AUTH_SOCK not-specified` | `repoURL` is the `git@github.com:…` SSH form but the Secret holds an HTTPS PAT | Use `https://github.com/<you>/banking-platform.git` in the Secret **and** the Application. |
+| App `ComparisonError: SSH agent requested but SSH_AUTH_SOCK not-specified` | `repoURL` is the `git@github.com:…` SSH form but the Secret holds an HTTPS PAT | Use `https://github.com/vijaygiduthuri/banking_application_eks.git` in the Secret **and** the Application. |
 | GitHub API `HTTP 404` for `/repos/<you>/<repo>` with a valid PAT | Fine-grained PAT missing this repo in its allowlist | Add the repo to the token, or use a **classic** PAT with `repo` scope. |
 | App permanently `OutOfSync` with only `StatefulSet/postgres` + `StatefulSet/kafka` differing | `volumeClaimTemplates` is immutable after creation | Keep the `ignoreDifferences` block + `RespectIgnoreDifferences=true` (already in Step 5). |
 | Many service pods `CrashLoopBackOff` right after sync | Services started before Postgres/Kafka DNS resolved (fail-fast exit) | **Expected.** Wait ~60–90 s. If still crashing after 2 min, `kubectl logs <pod> --previous` for a real error. |
