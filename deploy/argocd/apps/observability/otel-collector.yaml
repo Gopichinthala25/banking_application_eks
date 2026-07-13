@@ -1,0 +1,29 @@
+# OpenTelemetry Collector: single OTLP ingest -> Tempo (traces) + Prometheus (metrics).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: otel-collector
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: banking
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-collector
+      targetRevision: "*" # TODO: pin to a tested version for production
+      helm:
+        valueFiles:
+          - $values/deploy/observability/values/otel-collector.yaml
+    - repoURL: "https://github.com/YOUR_GH_USER/banking-platform.git"
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

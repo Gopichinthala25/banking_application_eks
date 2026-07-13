@@ -1,0 +1,391 @@
+# Phase 4 — Deploy the Banking Platform with Argo CD (EKS)
+
+> **Status:** ✅ Written *as we do it* on the EKS cluster. Reflects the exact
+> commands that work, not a theoretical guide.
+
+**Goal:** Move the platform from a manual `helm install` to a GitOps loop where
+**every push to `main` ends up in the cluster automatically**. After this phase:
+
+```
+you edit code  →  git push  →  GitHub Actions (build + push to ECR + bump values.yaml)
+                                          ↓
+                              Argo CD detects the values.yaml change
+                                          ↓
+                              Argo CD syncs the chart on the cluster
+                                          ↓
+                              new pods roll out with the new image tag
+```
+
+There is **no manual `helm upgrade` or `kubectl apply`** anywhere in that loop
+once it's set up.
+
+---
+
+## Prerequisites (from earlier phases)
+
+| What | How to check |
+| ---- | ------------ |
+| EKS cluster reachable from kubectl | `kubectl config current-context` returns the cluster ARN |
+| Traefik installed (namespace `traefik`) | `kubectl -n traefik get svc traefik` shows an EXTERNAL-IP (NLB hostname) |
+| CI pushes images to ECR & bumps `deploy/helm/banking-platform/values.yaml` | a recent `main` commit by `banking-ci[bot]` titled `ci(gitops): bump image tags to <sha>` |
+| `helm` v3 + `kubectl` locally | `helm version`, `kubectl version --client` |
+| EBS CSI driver + default `gp3` StorageClass | `kubectl get sc` shows `gp3 (default)` (Phase 1 Step 4) |
+
+---
+
+## Step 1 — Remove any manual Helm release (if you did one)
+
+If you tested the chart with `helm install banking …`, delete it first so Argo CD
+can **own** that same release (two controllers must not fight over the same
+objects). If you never ran a manual install, skip to Step 2.
+
+```bash
+helm uninstall banking -n banking
+```
+
+**What survives** the uninstall:
+
+| Resource | State |
+| -------- | ----- |
+| Deployments, Services, ConfigMaps, Secrets, HPAs, Ingress | deleted |
+| Postgres + Kafka **PVCs** (`data-postgres-0`, `data-kafka-0`) | **preserved** |
+| Namespace `banking` | preserved |
+
+```bash
+kubectl -n banking get pvc
+# Expect: data-postgres-0 and data-kafka-0 both Bound
+```
+
+> Helm `uninstall` doesn't touch PVCs created by a StatefulSet's
+> `volumeClaimTemplates`, so Postgres data + Kafka logs survive. When Argo CD
+> re-creates the StatefulSets they reattach to the existing PVCs.
+
+There's a **~1 minute window** between uninstall and Argo CD's first sync where
+the app is unreachable — expected for a clean transition.
+
+---
+
+## Step 2 — Install Argo CD
+
+```bash
+helm repo add argo https://argoproj.github.io/argo-helm
+helm repo update argo
+
+helm install argocd argo/argo-cd \
+  --namespace argocd --create-namespace \
+  --set server.service.type=ClusterIP \
+  --set 'configs.params.server\.insecure=true' \
+  --set 'configs.params.server\.rootpath=/argocd' \
+  --wait --timeout=5m
+```
+
+What these flags do:
+
+| Flag | Why |
+| ---- | --- |
+| `server.service.type=ClusterIP` | Put Argo CD behind the **existing Traefik NLB** via an IngressRoute — no second load balancer. |
+| `configs.params.server\.insecure=true` | Argo serves plain HTTP; Traefik terminates TLS in Phase 7. Without this it redirects to `https://` and the route breaks. |
+| `configs.params.server\.rootpath=/argocd` | Serve the UI under `/argocd`. The IngressRoute matches the same prefix. |
+| `--wait --timeout=5m` | Block until all pods are Ready. |
+
+Expect the Argo CD pods Running:
+```bash
+kubectl -n argocd get pods
+# argocd-application-controller-0, -applicationset-controller, -dex-server,
+# -notifications-controller, -redis, -repo-server, -server  (all Running)
+```
+
+---
+
+## Step 3 — Expose Argo CD via Traefik (`/argocd` path)
+
+Reuse the same Traefik NLB that fronts the app (Traefik's CRD provider is enabled
+from Phase 2). Apply an IngressRoute in the `argocd` namespace:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  entryPoints:
+    - web              # plain HTTP for now; Phase 7 adds TLS via websecure
+  routes:
+    - match: PathPrefix(`/argocd`)
+      kind: Rule
+      services:
+        - name: argocd-server
+          port: 80
+EOF
+```
+
+> **No StripPrefix middleware.** Because we set `server.rootpath=/argocd`, Argo CD
+> expects the `/argocd` prefix and rewrites its own links accordingly. Stripping
+> it would break the UI.
+
+Verify it's reachable through the NLB:
+```bash
+NLB=$(kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+curl -sI -o /dev/null -w "/argocd  -> HTTP %{http_code}\n"  "http://${NLB}/argocd"
+curl -sI -o /dev/null -w "/argocd/ -> HTTP %{http_code}\n"  "http://${NLB}/argocd/"
+# Expect: /argocd -> 307 (redirect to trailing slash),  /argocd/ -> 200 (login)
+```
+
+### 3a — Open the UI + get the admin password
+
+```bash
+NLB=$(kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+echo "URL:      http://${NLB}/argocd/"
+echo "Username: admin"
+echo -n "Password: "; kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
+Paste the URL (trailing slash matters) → Argo CD login page → log in as `admin`.
+
+### 3b — (optional) Access via port-forward instead
+
+```bash
+kubectl -n argocd port-forward svc/argocd-server 8080:80
+# then open http://localhost:8080/argocd/
+```
+
+### 3c — Lock down the bootstrap password (do once)
+
+After your first login: top-right (👤 admin) → **Update Password**, then delete
+the one-shot secret:
+```bash
+kubectl -n argocd delete secret argocd-initial-admin-secret
+```
+
+---
+
+## Step 4 — Give Argo CD access to the private repo (HTTPS + classic PAT)
+
+`argocd-repo-server` has no Git identity. For a private repo, store credentials
+in a labeled Secret. We use **HTTPS + a GitHub classic PAT** (Argo treats it as
+the HTTP basic-auth password).
+
+> A **fine-grained** PAT often returns **HTTP 404** because it needs each repo
+> explicitly allow-listed at creation. A **classic** PAT with the `repo` scope
+> sees every repo your account can — use that.
+
+### 4a — Create the PAT
+GitHub → **Settings → Developer settings → Personal access tokens (classic) →
+Generate new token (classic)** → tick **`repo`** → copy the `ghp_…` value.
+
+### 4b — Create the k8s Secret
+```bash
+GH_PAT='ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: banking-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository   # how repo-server discovers creds
+stringData:
+  type: git
+  url: https://github.com/<you>/banking-platform.git
+  username: <github-username>
+  password: ${GH_PAT}
+EOF
+```
+
+### 4c — Verify
+```bash
+kubectl -n argocd get secret banking-repo \
+  -o jsonpath='{.metadata.labels}{"\n"}'
+# {"argocd.argoproj.io/secret-type":"repository"}
+```
+
+---
+
+## Step 5 — Bootstrap GitOps (app-of-apps)
+
+These manifests are **committed** under [deploy/argocd/](../../deploy/argocd/)
+(see its [README](../../deploy/argocd/README.md)). We use the **app-of-apps**
+pattern: you apply two bootstrap files once, and a root Application creates
+everything else (`banking-platform`, `cert-manager`, and the observability apps)
+from `deploy/argocd/apps/`.
+
+### 5a — Set your repo URL (one-time)
+
+Every Application points at your git repo. Replace the placeholder, then commit:
+```bash
+grep -rl 'YOUR_GH_USER/banking-platform' deploy/argocd \
+  | xargs sed -i 's#https://github.com/YOUR_GH_USER/banking-platform.git#https://github.com/<you>/banking-platform.git#g'
+git add deploy/argocd && git commit -m "argocd: set repo URL" && git push
+```
+
+### 5b — Apply the two bootstrap files
+
+```bash
+kubectl apply -f deploy/argocd/bootstrap/project.yaml    # AppProject "banking"
+kubectl apply -f deploy/argocd/bootstrap/root-app.yaml   # app-of-apps root
+
+kubectl -n argocd get applications
+# platform-root, banking-platform, cert-manager,
+# kube-prometheus-stack, loki-stack, tempo, otel-collector, observability-extras
+```
+
+That's it — Argo CD clones the repo and reconciles all of them. The rest of this
+step shows **what those committed files contain** (identical YAML, for reference).
+
+<details>
+<summary>AppProject + banking-platform Application (contents of the committed files)</summary>
+
+```bash
+export REPO_URL="https://github.com/<you>/banking-platform.git"
+export REVISION="main"
+```
+
+**AppProject** — scopes allowed repos + namespaces:
+```bash
+kubectl apply -f - <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: banking
+  namespace: argocd
+spec:
+  description: Banking platform
+  sourceRepos:
+    - "${REPO_URL}"
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: banking }
+    - { server: https://kubernetes.default.svc, namespace: observability }
+    - { server: https://kubernetes.default.svc, namespace: argocd }
+  clusterResourceWhitelist:
+    - { group: "*", kind: "*" }
+EOF
+```
+
+**Application** — deploys the chart, auto-syncs, and ignores the immutable
+StatefulSet `volumeClaimTemplates` (see Troubleshooting):
+```bash
+kubectl apply -f - <<EOF
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: banking-platform
+  namespace: argocd
+spec:
+  project: banking
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REVISION}
+    path: deploy/helm/banking-platform
+    helm:
+      valueFiles:
+        - values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: banking
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
+EOF
+```
+
+</details>
+
+`syncPolicy.automated` means Argo starts cloning + reconciling immediately — no
+manual `argocd app sync`.
+
+**Expected boot timeline** (~60–90 s):
+```
+0s   Argo discovers the Application, clones the repo
+10s  Helm chart rendered; all manifests applied
+15s  Postgres + Kafka PVCs reattach (same data as before uninstall)
+20s  postgres-0 + kafka-0 Running
+20s  Go services start; some fail first attempt — Postgres/Kafka DNS not ready yet
+40s  Postgres/Kafka readiness passes; services restart (fail-fast) and connect
+75s  All pods Running 1/1
+```
+
+The first ~20 s of `CrashLoopBackOff` is **expected**: our services exit on
+startup if Postgres/Kafka isn't reachable yet; the kubelet restarts them and
+they come up cleanly once the datastores are ready.
+
+**Verify:**
+```bash
+kubectl -n argocd get app banking-platform
+# NAME               SYNC STATUS   HEALTH STATUS
+# banking-platform   Synced        Healthy
+
+kubectl -n banking get pods         # ~35 pods Running 1/1 after ~90s
+```
+
+---
+
+## Step 6 — Verify the GitOps loop end-to-end
+
+```
+ 1. edit any service (e.g. add a comment)
+ 2. git push origin main
+ 3. .github/workflows/ci.yaml runs
+       → build → Trivy scan → push to ECR  banking-platform:<service>-<sha>
+       → update-gitops rewrites deploy/helm/banking-platform/values.yaml
+       → commits & pushes as banking-ci[bot]  ("ci(gitops): bump image tags to <sha> [skip ci]")
+ 4. Argo CD poller (default 3 min) sees the commit  — or click "Refresh" in the UI
+ 5. Argo diffs cluster vs git, sees new image tags → OutOfSync
+ 6. selfHeal=true → Argo applies the new spec → kubelet rolls the pods
+ 7. New pods run the just-built image. Done.
+```
+
+Smoke test once green (through the gateway):
+```bash
+NLB=$(kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+TOKEN=$(curl -s -X POST http://$NLB/api/v1/auth/register -H "Host: vijaygiduthuri.in" \
+  -d '{"email":"gitops@bank.io","password":"password123"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+echo "token len: ${#TOKEN}"
+```
+(Once DNS is set in Phase 5 you'll use `https://vijaygiduthuri.in` directly.)
+
+---
+
+## A note on routing (path-based, single apex host)
+
+This doc set serves **everything on the apex `vijaygiduthuri.in`** with
+**path-based routing** — no subdomains. Argo CD lives at **`/argocd`** on the
+shared Traefik NLB (one LB, one Route 53 apex ALIAS — see docs 05 and 07),
+alongside the app at `/` and (Phase 7) Grafana/Prometheus/Alertmanager at
+`/grafana`, `/prometheus`, `/alertmanager`. One host keeps everything under a
+single TLS cert and needs no extra DNS records.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+| ------- | ------------ | --- |
+| App `ComparisonError: SSH agent requested but SSH_AUTH_SOCK not-specified` | `repoURL` is the `git@github.com:…` SSH form but the Secret holds an HTTPS PAT | Use `https://github.com/<you>/banking-platform.git` in the Secret **and** the Application. |
+| GitHub API `HTTP 404` for `/repos/<you>/<repo>` with a valid PAT | Fine-grained PAT missing this repo in its allowlist | Add the repo to the token, or use a **classic** PAT with `repo` scope. |
+| App permanently `OutOfSync` with only `StatefulSet/postgres` + `StatefulSet/kafka` differing | `volumeClaimTemplates` is immutable after creation | Keep the `ignoreDifferences` block + `RespectIgnoreDifferences=true` (already in Step 5). |
+| Many service pods `CrashLoopBackOff` right after sync | Services started before Postgres/Kafka DNS resolved (fail-fast exit) | **Expected.** Wait ~60–90 s. If still crashing after 2 min, `kubectl logs <pod> --previous` for a real error. |
+| Argo UI loads but assets 404 / blank | `server.rootpath` not set, or a StripPrefix middleware on the route | `helm upgrade argocd argo/argo-cd -n argocd --reuse-values --set 'configs.params.server\.rootpath=/argocd'`; do **not** add StripPrefix. |
+| App `Unknown / Unable to connect to repository` | Repo Secret missing the `repository` label, or its `url` doesn't byte-match `source.repoURL` | Confirm the label; make `url` and `repoURL` match exactly (incl. trailing `.git`). |
+| CI `update-gitops` push denied | `GITHUB_TOKEN` lacks `contents:write` or branch protection blocks bots | Settings → Actions → Workflow permissions = **Read and write**, or set `GITOPS_TOKEN` PAT. |
+| `ImagePullBackOff` after sync | Tag not in ECR / node can't pull | Confirm CI pushed the tag; node role has ECR read (from `iam` module). |
+
+---
+
+➡️ **Next:** [Phase 5 — DNS (GoDaddy)](05-dns-godaddy.md)

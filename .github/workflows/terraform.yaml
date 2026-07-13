@@ -1,0 +1,30 @@
+name: Terraform CI
+
+# Format-check and validate the Terraform (no credentials, nothing applied).
+on:
+  push:
+    branches: [main]
+    paths: ["terraform/**"]
+  pull_request:
+    branches: [main]
+    paths: ["terraform/**"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: [dev, qa, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: fmt
+        run: terraform -chdir=terraform fmt -recursive -check
+      - name: init (no backend)
+        run: terraform -chdir=terraform/environments/${{ matrix.env }} init -backend=false -input=false
+      - name: validate
+        run: terraform -chdir=terraform/environments/${{ matrix.env }} validate

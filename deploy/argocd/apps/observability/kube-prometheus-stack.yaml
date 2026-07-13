@@ -1,0 +1,34 @@
+# Prometheus + Alertmanager + Grafana + exporters (installs the Prometheus
+# Operator CRDs used by the ServiceMonitor in extras.yaml).
+#
+# Multi-source: the chart comes from the Helm repo; the values file comes from
+# THIS git repo (the same file install.sh uses) via the $values ref.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: banking
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: "*" # TODO: pin to a tested version for production
+      helm:
+        valueFiles:
+          - $values/deploy/observability/values/kube-prometheus-stack.yaml
+    - repoURL: "https://github.com/YOUR_GH_USER/banking-platform.git"
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true # large CRDs → server-side apply

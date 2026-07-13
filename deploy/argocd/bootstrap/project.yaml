@@ -1,0 +1,27 @@
+# AppProject that scopes what the platform's Applications may deploy.
+# Apply this ONCE (with root-app.yaml) to bootstrap GitOps. See ../README.md.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: banking
+  namespace: argocd
+spec:
+  description: Banking platform
+  sourceRepos:
+    # Our git repo (chart + argocd manifests + observability values).
+    - "https://github.com/YOUR_GH_USER/banking-platform.git"
+    # Helm chart repos the observability + cert-manager Applications pull from.
+    - "https://prometheus-community.github.io/helm-charts"
+    - "https://grafana.github.io/helm-charts"
+    - "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    - "https://charts.jetstack.io"
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: banking }
+    - { server: https://kubernetes.default.svc, namespace: observability }
+    - { server: https://kubernetes.default.svc, namespace: cert-manager }
+    - { server: https://kubernetes.default.svc, namespace: argocd }
+  # The chart spans cluster-scoped resources (CRDs, ClusterRoles, etc.), so allow all.
+  clusterResourceWhitelist:
+    - { group: "*", kind: "*" }
+  namespaceResourceWhitelist:
+    - { group: "*", kind: "*" }

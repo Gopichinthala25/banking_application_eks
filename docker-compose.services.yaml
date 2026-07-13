@@ -1,0 +1,250 @@
+# One-command local run of the whole banking platform.
+#
+# Requires the data stores from docker-compose.yaml. Run both files together:
+#
+#   docker compose -f docker-compose.yaml -f docker-compose.services.yaml up -d --build
+#
+# All services share the single "banking" database (each creates its own
+# prefixed tables). Ports are mapped to the host as 81xx for convenience.
+#
+# Handy: auth 8101 · ledger 8107 · account 8108 · transaction 8109 · wallet 8112
+
+name: banking-platform
+
+x-common-env: &common-env
+  ENVIRONMENT: development
+  POSTGRES_ENABLED: "true"
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: banking
+  POSTGRES_PASSWORD: banking
+  POSTGRES_DB: banking
+  REDIS_ENABLED: "true"
+  REDIS_ADDR: redis:6379
+  KAFKA_ENABLED: "true"
+  KAFKA_BROKERS: kafka:9094
+  OTEL_ENABLED: "false"
+  JWT_SECRET: local-dev-secret-change-me
+  JWT_ISSUER: banking-platform
+  LOG_FORMAT: json
+
+x-svc: &svc
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  # --- Identity & customer ---
+  auth-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: auth-service } }
+    environment: { <<: *common-env, SERVICE_NAME: auth-service, GRPC_ENABLED: "true" }
+    ports: ["8101:8080"]
+
+  authz-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: authz-service } }
+    environment: { <<: *common-env, SERVICE_NAME: authz-service, GRPC_ENABLED: "true" }
+    ports: ["8102:8080"]
+
+  customer-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: customer-service } }
+    environment: { <<: *common-env, SERVICE_NAME: customer-service }
+    ports: ["8103:8080"]
+
+  profile-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: profile-service } }
+    environment: { <<: *common-env, SERVICE_NAME: profile-service }
+    ports: ["8104:8080"]
+
+  kyc-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: kyc-service } }
+    environment: { <<: *common-env, SERVICE_NAME: kyc-service }
+    ports: ["8105:8080"]
+
+  document-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: document-service } }
+    environment: { <<: *common-env, SERVICE_NAME: document-service, S3_ENABLED: "false" }
+    ports: ["8106:8080"]
+
+  # --- Core banking ---
+  ledger-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: ledger-service } }
+    environment: { <<: *common-env, SERVICE_NAME: ledger-service, GRPC_ENABLED: "true" }
+    ports: ["8107:8080"]
+
+  account-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: account-service } }
+    environment: { <<: *common-env, SERVICE_NAME: account-service, GRPC_ENABLED: "true", LEDGER_GRPC_ADDR: "ledger-service:9090" }
+    depends_on:
+      postgres: { condition: service_healthy }
+      ledger-service: { condition: service_started }
+    ports: ["8108:8080"]
+
+  transaction-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: transaction-service } }
+    environment: { <<: *common-env, SERVICE_NAME: transaction-service, LEDGER_GRPC_ADDR: "ledger-service:9090" }
+    depends_on:
+      postgres: { condition: service_healthy }
+      ledger-service: { condition: service_started }
+    ports: ["8109:8080"]
+
+  beneficiary-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: beneficiary-service } }
+    environment: { <<: *common-env, SERVICE_NAME: beneficiary-service }
+    ports: ["8110:8080"]
+
+  payment-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: payment-service } }
+    environment: { <<: *common-env, SERVICE_NAME: payment-service, LEDGER_GRPC_ADDR: "ledger-service:9090" }
+    depends_on:
+      postgres: { condition: service_healthy }
+      ledger-service: { condition: service_started }
+    ports: ["8111:8080"]
+
+  wallet-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: wallet-service } }
+    environment: { <<: *common-env, SERVICE_NAME: wallet-service }
+    ports: ["8112:8080"]
+
+  # --- Products ---
+  loan-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: loan-service } }
+    environment: { <<: *common-env, SERVICE_NAME: loan-service, LEDGER_GRPC_ADDR: "ledger-service:9090" }
+    depends_on:
+      postgres: { condition: service_healthy }
+      ledger-service: { condition: service_started }
+    ports: ["8113:8080"]
+
+  emi-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: emi-service } }
+    environment: { <<: *common-env, SERVICE_NAME: emi-service }
+    ports: ["8114:8080"]
+
+  fixed-deposit-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: fixed-deposit-service } }
+    environment: { <<: *common-env, SERVICE_NAME: fixed-deposit-service }
+    ports: ["8115:8080"]
+
+  recurring-deposit-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: recurring-deposit-service } }
+    environment: { <<: *common-env, SERVICE_NAME: recurring-deposit-service }
+    ports: ["8116:8080"]
+
+  card-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: card-service } }
+    environment: { <<: *common-env, SERVICE_NAME: card-service }
+    ports: ["8117:8080"]
+
+  investment-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: investment-service } }
+    environment: { <<: *common-env, SERVICE_NAME: investment-service }
+    ports: ["8118:8080"]
+
+  currency-exchange-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: currency-exchange-service } }
+    environment: { <<: *common-env, SERVICE_NAME: currency-exchange-service }
+    ports: ["8119:8080"]
+
+  # --- Async, risk & insight (Kafka consumers) ---
+  audit-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: audit-service } }
+    environment: { <<: *common-env, SERVICE_NAME: audit-service }
+    ports: ["8120:8080"]
+
+  fraud-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: fraud-service } }
+    environment: { <<: *common-env, SERVICE_NAME: fraud-service }
+    ports: ["8121:8080"]
+
+  notification-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: notification-service } }
+    environment: { <<: *common-env, SERVICE_NAME: notification-service }
+    ports: ["8122:8080"]
+
+  statement-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: statement-service } }
+    environment: { <<: *common-env, SERVICE_NAME: statement-service }
+    ports: ["8123:8080"]
+
+  reports-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: reports-service } }
+    environment: { <<: *common-env, SERVICE_NAME: reports-service }
+    ports: ["8124:8080"]
+
+  analytics-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: analytics-service } }
+    environment: { <<: *common-env, SERVICE_NAME: analytics-service }
+    ports: ["8125:8080"]
+
+  search-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: search-service } }
+    environment: { <<: *common-env, SERVICE_NAME: search-service }
+    ports: ["8126:8080"]
+
+  email-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: email-service } }
+    environment: { <<: *common-env, SERVICE_NAME: email-service }
+    ports: ["8127:8080"]
+
+  sms-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: sms-service } }
+    environment: { <<: *common-env, SERVICE_NAME: sms-service }
+    ports: ["8128:8080"]
+
+  # --- Ops ---
+  support-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: support-service } }
+    environment: { <<: *common-env, SERVICE_NAME: support-service }
+    ports: ["8129:8080"]
+
+  admin-service:
+    <<: *svc
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: admin-service } }
+    environment: { <<: *common-env, SERVICE_NAME: admin-service }
+    ports: ["8130:8080"]
+
+  # --- Edge: API gateway (single entry point) ---
+  api-gateway:
+    build: { context: ., dockerfile: build/service.Dockerfile, args: { SERVICE: api-gateway } }
+    environment:
+      <<: *common-env
+      SERVICE_NAME: api-gateway
+      CORS_ALLOWED_ORIGINS: "*"
+    restart: unless-stopped
+    ports: ["8080:8080"]
+
+  # --- Frontend SPA (nginx serving the built React app + proxying /api) ---
+  frontend:
+    build: { context: ./frontend, dockerfile: Dockerfile }
+    depends_on: [api-gateway]
+    restart: unless-stopped
+    ports: ["3000:8080"]

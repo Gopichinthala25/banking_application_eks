@@ -1,0 +1,22 @@
+# grafana/loki-stack — Loki (log store) + Promtail (ships pod stdout to Loki).
+# Grafana is disabled here; we use the one from kube-prometheus-stack.
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: "1", memory: 512Mi }
+
+promtail:
+  enabled: true
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { cpu: 200m, memory: 128Mi }
+
+grafana:
+  enabled: false
+
+prometheus:
+  enabled: false
