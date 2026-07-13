@@ -406,7 +406,8 @@ nothing provisioned). Add-ons stay out of Terraform (Helm/GitOps).
 - **modules/iam** — EKS cluster role (+`AmazonEKSClusterPolicy`), worker node
   role (+worker/CNI/ECR-readonly), and an ECR push policy for CI.
 - **environments/dev, qa, prod** — each a root module wiring vpc+iam with its own
-  CIDR (10.10/10.20/10.30), S3+DynamoDB backend stanza, and default_tags.
+  CIDR (10.10/10.20/10.30), S3 backend with native lockfile locking
+  (`use_lockfile`, Terraform ≥ 1.10 — no DynamoDB), and default_tags.
 - `terraform/README.md` documents layout, usage, and state bootstrap.
 
 ### Decisions (per your choices)

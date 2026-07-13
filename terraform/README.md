@@ -38,9 +38,9 @@ terraform apply
 
 ## Remote state (bootstrap once)
 
-`backend.tf` expects an S3 bucket `banking-platform-tfstate` and a DynamoDB lock
-table `banking-platform-tflock`. Create these once (console or a tiny bootstrap
-config) before the first `terraform init` with the backend enabled.
+`backend.tf` expects an S3 bucket `banking-platform-tfstate` with `use_lockfile`
+native locking (Terraform ≥ 1.10 — no DynamoDB). Create just the bucket once
+(console or CLI) before the first `terraform init` with the backend enabled.
 
 ## Notes
 

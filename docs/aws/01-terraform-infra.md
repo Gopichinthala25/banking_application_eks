@@ -71,19 +71,22 @@ Terraform — **VPC, EKS, managed node group, ECR, S3, IAM/IRSA** — then conne
 
 ## Step 0 — Bootstrap remote state (one-time per account)
 
-Each environment's `backend.tf` stores state in **S3** with **DynamoDB**
-locking. Create those two resources once before the first `init`:
+Each environment's `backend.tf` stores state in **S3** with **native lockfile
+locking** (`use_lockfile = true`, Terraform ≥ 1.10) — **no DynamoDB needed**.
+S3 holds the lock itself as a `.tflock` object via conditional writes. So you
+only create the **one bucket** before the first `init`:
 
 ```bash
 REGION=us-east-1
 aws s3api create-bucket --bucket banking-platform-tfstate --region $REGION
 aws s3api put-bucket-versioning --bucket banking-platform-tfstate \
   --versioning-configuration Status=Enabled
-aws dynamodb create-table --table-name banking-platform-tflock \
-  --attribute-definitions AttributeName=LockID,AttributeType=S \
-  --key-schema AttributeName=LockID,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST --region $REGION
 ```
+
+> **Why no DynamoDB?** Before Terraform 1.10, the S3 backend couldn't lock on its
+> own, so a DynamoDB table was required. Since 1.10, `use_lockfile = true` gives
+> native locking — the DynamoDB table is legacy. (Requires you run Terraform
+> ≥ 1.10, which our `required_version` enforces.)
 
 > Just trying things out? Skip this and run `terraform init -backend=false` to
 > validate locally without remote state.

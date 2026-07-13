@@ -1,14 +1,15 @@
-# Remote state in S3 with DynamoDB locking.
+# Remote state in S3 with native lockfile locking (Terraform >= 1.10 — no DynamoDB).
 #
-# The bucket + lock table must exist first (bootstrap once, out of band). For
-# offline validation we run `terraform init -backend=false`, so this block is
+# Only the S3 bucket must exist first (bootstrap once, out of band). `use_lockfile`
+# makes the S3 backend hold the lock as a `.tflock` object via conditional writes.
+# For offline validation we run `terraform init -backend=false`, so this block is
 # inert until you configure and init with a real backend.
 terraform {
   backend "s3" {
-    bucket         = "banking-platform-tfstate" # create once, then set here
-    key            = "dev/networking.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "banking-platform-tflock"
-    encrypt        = true
+    bucket       = "banking-platform-tfstate" # create once, then set here
+    key          = "dev/networking.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true
+    encrypt      = true
   }
 }
