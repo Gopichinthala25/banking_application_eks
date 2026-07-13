@@ -20,20 +20,14 @@ deploy/argocd/
         └── extras.yaml                # ServiceMonitor + dashboards (raw manifests)
 ```
 
-## 1. Set your repo URL (one-time)
+## 1. Repo URL & credentials
 
-Every Application points at this git repo. Replace the placeholder everywhere:
+Every Application already points at this repo:
+`https://github.com/vijaygiduthuri/banking_application_eks.git`.
 
-```bash
-# from the repo root — set to your actual GitHub repo
-grep -rl 'YOUR_GH_USER/banking-platform' deploy/argocd \
-  | xargs sed -i 's#https://github.com/YOUR_GH_USER/banking-platform.git#https://github.com/<you>/banking-platform.git#g'
-```
-
-Commit the change so Argo CD (which reads from git) sees the right URL.
-
-> Private repo? Give Argo CD credentials first — see docs/aws/04-argocd.md Step 4
-> (labeled `repository` Secret with a classic PAT).
+> **Private repo?** Argo CD needs read credentials or it can't clone. Add a
+> labeled `repository` Secret (HTTPS + a classic PAT) — see
+> docs/aws/04-argocd.md Step 4. If the repo is public, no credentials are needed.
 
 ## 2. Bootstrap (apply once)
 

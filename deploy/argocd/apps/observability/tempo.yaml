@@ -15,7 +15,7 @@ spec:
       helm:
         valueFiles:
           - $values/deploy/observability/values/tempo.yaml
-    - repoURL: "https://github.com/YOUR_GH_USER/banking-platform.git"
+    - repoURL: "https://github.com/vijaygiduthuri/banking_application_eks.git"
       targetRevision: main
       ref: values
   destination:

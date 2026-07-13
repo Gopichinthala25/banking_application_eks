@@ -12,7 +12,7 @@ metadata:
 spec:
   project: banking
   source:
-    repoURL: "https://github.com/YOUR_GH_USER/banking-platform.git"
+    repoURL: "https://github.com/vijaygiduthuri/banking_application_eks.git"
     targetRevision: main
     path: deploy/argocd/apps
     directory:
