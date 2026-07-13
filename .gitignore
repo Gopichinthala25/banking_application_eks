@@ -41,3 +41,6 @@ crash.log
 # Build/cache
 .cache/
 tmp/
+
+# Local-only progress notes (never pushed)
+PROJECT_PROGRESS.md
