@@ -508,7 +508,7 @@ metrics↔logs↔traces correlation. Deployed and verified on the kind cluster.
   1. **changes** — detect changed services (shared change → build all; manual
      `build_all` input).
   2. **build** (matrix per service) — `go test` + `vet` → `docker build`
-     (build/service.Dockerfile) → **Trivy** scan (CRITICAL/HIGH, fail on fixable)
+     (build/service.Dockerfile) → **Trivy** scan `@v0.36.0` (CRITICAL/HIGH, report-only `exit-code: "0"`)
      → push to the single ECR repo as `<repo>:<service>-<sha>`.
   3. **frontend** — React → docker → Trivy → push `:frontend-<sha>`.
   4. **bump-and-commit** — `yq` bumps `global.image.tag=<sha>` in
