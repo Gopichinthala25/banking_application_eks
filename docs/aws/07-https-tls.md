@@ -19,7 +19,7 @@ https://vijaygiduthuri.in/alertmanager   — Alertmanager
 > Set this once and reuse it below:
 > ```bash
 > export HOSTNAME_APP="vijaygiduthuri.in"     # 👈 your apex domain (from Phase 5)
-> export ACME_EMAIL="vijay.giduthuri@sxalable.io"       # 👈 Let's Encrypt expiry notices
+> export ACME_EMAIL="vijaygiduthuri67@gmail.com"        # 👈 Let's Encrypt expiry notices
 > ```
 
 ---
@@ -148,10 +148,24 @@ kubectl -n cert-manager get pods          # cert-manager (×2), cainjector, webh
 
 ---
 
-## Step 2 — Apply the Let's Encrypt ClusterIssuer
+## Step 2 — Let's Encrypt ClusterIssuer (already GitOps-managed)
+
+The `letsencrypt-prod` ClusterIssuer is **committed**
+([deploy/cluster/cert-manager/clusterissuer.yaml](../../deploy/cluster/cert-manager/clusterissuer.yaml))
+and applied by the `cert-manager-issuer` Argo app — so once Argo CD is
+bootstrapped (Phase 4), it's created automatically (it retries until the
+cert-manager CRDs exist). Just confirm it's ready:
 
 ```bash
-kubectl apply -f - <<EOF
+kubectl get clusterissuer
+# NAME               READY   AGE
+# letsencrypt-prod   True    30s
+```
+
+<details>
+<summary>Contents of the committed ClusterIssuer (for reference)</summary>
+
+```yaml
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -159,19 +173,16 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: ${ACME_EMAIL}
+    email: vijaygiduthuri67@gmail.com
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
       - http01:
           ingress:
             class: traefik
-EOF
-
-kubectl get clusterissuer
-# NAME               READY   AGE
-# letsencrypt-prod   True    30s
 ```
+
+</details>
 
 > Iterating and worried about the **5 certs/week/domain** prod rate limit? Add a
 > second issuer `letsencrypt-staging` with

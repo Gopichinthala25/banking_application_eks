@@ -11,7 +11,7 @@ spec:
   sources:
     - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
       chart: opentelemetry-collector
-      targetRevision: "*" # TODO: pin to a tested version for production
+      targetRevision: 0.165.0 # pinned; bump deliberately after testing
       helm:
         valueFiles:
           - $values/deploy/observability/values/otel-collector.yaml

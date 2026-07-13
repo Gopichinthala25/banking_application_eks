@@ -546,6 +546,9 @@ metrics↔logs↔traces correlation. Deployed and verified on the kind cluster.
   (keeps the StatefulSet `volumeClaimTemplates` `ignoreDifferences`).
 - **`apps/cert-manager.yaml`** — jetstack cert-manager `v1.15.3` → ns
   `cert-manager` (Phase 11/TLS).
+- **`apps/cert-manager-issuer.yaml`** — `letsencrypt-prod` ClusterIssuer
+  ([deploy/cluster/cert-manager/](deploy/cluster/cert-manager/)); retries until
+  the cert-manager CRDs exist.
 - **`apps/observability/*`** — `kube-prometheus-stack`, `loki-stack`, `tempo`,
   `otel-collector` (multi-source: chart from Helm repo + values from
   `deploy/observability/values/*.yaml` via a `$values` ref) + `extras.yaml`

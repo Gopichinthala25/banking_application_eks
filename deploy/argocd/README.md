@@ -44,7 +44,7 @@ Application. Watch them appear:
 
 ```bash
 kubectl -n argocd get applications
-# platform-root, cluster-storage, banking-platform, cert-manager,
+# platform-root, cluster-storage, banking-platform, cert-manager, cert-manager-issuer,
 # kube-prometheus-stack, loki-stack, tempo, otel-collector, observability-extras
 ```
 

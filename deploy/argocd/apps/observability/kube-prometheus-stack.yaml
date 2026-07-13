@@ -15,7 +15,7 @@ spec:
   sources:
     - repoURL: https://prometheus-community.github.io/helm-charts
       chart: kube-prometheus-stack
-      targetRevision: "*" # TODO: pin to a tested version for production
+      targetRevision: 87.15.1 # pinned; bump deliberately after testing
       helm:
         valueFiles:
           - $values/deploy/observability/values/kube-prometheus-stack.yaml

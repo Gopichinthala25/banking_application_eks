@@ -11,7 +11,7 @@ spec:
   sources:
     - repoURL: https://grafana.github.io/helm-charts
       chart: loki-stack
-      targetRevision: "*" # TODO: pin to a tested version for production
+      targetRevision: 2.10.3 # pinned; bump deliberately after testing
       helm:
         valueFiles:
           - $values/deploy/observability/values/loki-stack.yaml

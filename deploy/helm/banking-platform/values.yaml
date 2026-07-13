@@ -372,9 +372,9 @@ postgres:
 # kind uses the NodePorts above. Set enabled/tls/host for EKS.
 # ---------------------------------------------------------------------------
 ingress:
-  enabled: false
+  enabled: true
   className: traefik
-  host: banking.example.com
-  tls: false
+  host: vijaygiduthuri.in
+  tls: false # Phase E flips this to true (cert-manager auto-issues banking-tls)
   tlsSecretName: banking-tls
   clusterIssuer: letsencrypt-prod

@@ -11,7 +11,7 @@ spec:
   sources:
     - repoURL: https://grafana.github.io/helm-charts
       chart: tempo
-      targetRevision: "*" # TODO: pin to a tested version for production
+      targetRevision: 1.24.4 # pinned; bump deliberately after testing
       helm:
         valueFiles:
           - $values/deploy/observability/values/tempo.yaml

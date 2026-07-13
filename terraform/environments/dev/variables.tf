@@ -59,24 +59,24 @@ variable "cluster_version" {
 }
 
 variable "node_instance_types" {
-  description = "Managed node group instance types."
+  description = "Managed node group instance types. t3.xlarge (4 vCPU/16 GB) fits the full stack (32 app pods + Postgres/Kafka/Redis + kube-prometheus-stack + Loki + Tempo + OTel + Argo CD)."
   type        = list(string)
-  default     = ["t3.large"]
+  default     = ["t3.xlarge"]
 }
 
 variable "node_min_size" {
   type    = number
-  default = 2
+  default = 3
 }
 
 variable "node_max_size" {
   type    = number
-  default = 5
+  default = 6
 }
 
 variable "node_desired_size" {
   type    = number
-  default = 3
+  default = 4
 }
 
 variable "ecr_repository_name" {
