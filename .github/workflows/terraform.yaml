@@ -4,10 +4,10 @@ name: Terraform CI
 on:
   push:
     branches: [main]
-    paths: ["terraform/**"]
+    paths: ["terraform/**", ".github/workflows/terraform.yaml"]
   pull_request:
     branches: [main]
-    paths: ["terraform/**"]
+    paths: ["terraform/**", ".github/workflows/terraform.yaml"]
   workflow_dispatch:
 
 jobs:
