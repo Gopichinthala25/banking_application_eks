@@ -78,8 +78,8 @@ only create the **one bucket** before the first `init`:
 
 ```bash
 REGION=us-east-1
-aws s3api create-bucket --bucket banking-platform-tfstate --region $REGION
-aws s3api put-bucket-versioning --bucket banking-platform-tfstate \
+aws s3api create-bucket --bucket banking-platform-tfstate-118178010323 --region $REGION
+aws s3api put-bucket-versioning --bucket banking-platform-tfstate-118178010323 \
   --versioning-configuration Status=Enabled
 ```
 
