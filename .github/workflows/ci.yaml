@@ -48,6 +48,7 @@ on:
       - "build/**"
       - "deploy/helm/**"
       - ".github/workflows/ci.yaml"
+  workflow_dispatch: {} # manual "Run workflow" — build+push all images on demand
 
 concurrency:
   group: ci-${{ github.ref }}
