@@ -17,6 +17,12 @@ promtail:
 
 grafana:
   enabled: false
+  sidecar:
+    datasources:
+      # Don't emit loki-stack's own Loki datasource (it's marked isDefault:true and
+      # collides with kube-prometheus-stack's default Prometheus → Grafana crashes).
+      # Loki + Tempo are defined in kube-prometheus-stack's additionalDataSources.
+      enabled: false
 
 prometheus:
   enabled: false
