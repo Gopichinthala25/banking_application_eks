@@ -16,6 +16,7 @@ spec:
     - "https://open-telemetry.github.io/opentelemetry-helm-charts"
     - "https://charts.jetstack.io"
     - "https://kubernetes-sigs.github.io/metrics-server/"
+    - "https://vmware-tanzu.github.io/helm-charts"
   destinations:
     - { server: https://kubernetes.default.svc, namespace: banking }
     - { server: https://kubernetes.default.svc, namespace: observability }
