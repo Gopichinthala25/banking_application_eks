@@ -44,7 +44,7 @@ grafana:
       type: loki
       uid: loki
       access: proxy
-      url: http://loki.observability.svc.cluster.local:3100
+      url: http://loki-stack.observability.svc.cluster.local:3100
       jsonData:
         derivedFields:
           - name: TraceID
