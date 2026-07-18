@@ -6,6 +6,7 @@ import Register from './pages/Register.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Accounts from './pages/Accounts.jsx'
 import Transfer from './pages/Transfer.jsx'
+import Deposit from './pages/Deposit.jsx'
 import Cards from './pages/Cards.jsx'
 import Loans from './pages/Loans.jsx'
 
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/transfer" element={<Transfer />} />
+        <Route path="/deposit" element={<Deposit />} />
         <Route path="/cards" element={<Cards />} />
         <Route path="/loans" element={<Loans />} />
       </Route>

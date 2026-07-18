@@ -13,6 +13,7 @@ export default function Layout() {
   const links = [
     ['/', 'Dashboard'],
     ['/accounts', 'Accounts'],
+    ['/deposit', 'Deposit'],
     ['/transfer', 'Transfer'],
     ['/cards', 'Cards'],
     ['/loans', 'Loans'],
