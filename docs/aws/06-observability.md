@@ -291,6 +291,163 @@ kubectl -n banking get hpa           # TARGETS show real % (e.g. cpu: 4%/70%), n
 
 ---
 
+## Prometheus queries (reference)
+
+Once everything's running, here's a hand-picked set of PromQL queries that
+exercise the metrics **our** setup actually exposes — useful for debugging or
+just exploring.
+
+Open the Prometheus UI at **`https://vijaygiduthuri.in/prometheus/`**, paste a
+query into the Expression box, and click **Execute** (the ▷ play icon). Results
+appear in the **Table** tab.
+
+> **Tip:** after pasting, you must click **Execute** — pressing Enter alone
+> doesn't run the query in the new Prometheus UI.
+>
+> **Note:** when a result row shows `{}` with a number next to it, `{}` means
+> "no labels" and the number *is* the value.
+
+Every Go service uses our shared Gin middleware (`pkg/httpserver/middleware.go`),
+which exposes a single shared metric **`http_requests_total`** with labels
+`service`, `method`, `path`, `status`, plus **`http_request_duration_seconds`**
+(a histogram). So most queries filter by `{service="…"}` rather than per-service
+metric names.
+
+**Query 1 — Are all targets UP?**
+```promql
+up
+```
+Every scrape target. Rows with value `1` are UP.
+
+**Query 2 — All banking targets**
+```promql
+up{namespace="banking"}
+```
+Just the banking services — all should show value `1`.
+
+**Query 3 — Total HTTP requests per service**
+```promql
+sum by (service) (http_requests_total{namespace="banking"})
+```
+Lifetime request count per service. Health probes (`/healthz`, `/readyz`)
+dominate when the cluster is idle.
+
+**Query 4 — Per-route detail for one service**
+```promql
+http_requests_total{service="transaction-service"}
+```
+One row per method+path+status. Swap `transaction-service` for any service
+(`auth-service`, `account-service`, `ledger-service`, `api-gateway`, …).
+
+**Query 5 — Request rate (req/s) per service**
+```promql
+sum by (service) (rate(http_requests_total{namespace="banking"}[5m]))
+```
+Current throughput per service over the last 5 min — the same series the
+per-service Grafana dashboard's "Request rate" panel uses.
+
+**Query 6 — 5xx error rate (errors/s) per service**
+```promql
+sum by (service) (rate(http_requests_total{namespace="banking", status=~"5.."}[5m]))
+```
+Should be `0` / very low on a healthy cluster. An **empty result is the healthy
+state** — `rate()` returns no series when no 5xx happened in the window. To force
+a row for testing, hit a bad endpoint: `curl -X POST https://vijaygiduthuri.in/api/v1/auth/login -d 'bogus'`.
+
+**Query 7 — Error percentage per service**
+```promql
+sum by (service) (rate(http_requests_total{namespace="banking", status=~"5.."}[5m]))
+  /
+clamp_min(sum by (service) (rate(http_requests_total{namespace="banking"}[5m])), 1e-9)
+```
+5xx as a fraction of total (×100 for percent). `clamp_min` avoids divide-by-zero
+when a service has no traffic.
+
+**Query 8 — p95 latency per service (seconds)**
+```promql
+histogram_quantile(0.95, sum by (le, service) (rate(http_request_duration_seconds_bucket{namespace="banking"}[5m])))
+```
+95th-percentile response latency. Sub-100 ms is healthy for most CRUD endpoints.
+
+**Query 9 — Top 5 busiest endpoints**
+```promql
+topk(5, sum by (service, path) (rate(http_requests_total{namespace="banking"}[5m])))
+```
+
+**Query 10 — Pod restart counts**
+```promql
+kube_pod_container_status_restarts_total{namespace="banking"}
+```
+`0` is ideal. Non-zero = the kubelet restarted that container (OOM, crash,
+liveness failure).
+
+**Query 11 — Deployment available replicas**
+```promql
+kube_deployment_status_replicas_available{namespace="banking"}
+```
+Should match desired replicas; lower means some pods are NotReady.
+
+**Query 12 — CPU usage per pod (cores)**
+```promql
+sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="banking", container!="POD", container!=""}[5m]))
+```
+`1.0` = one full vCPU. Watch pods nearing their CPU limit.
+
+**Query 13 — Memory usage per pod (MiB)**
+```promql
+sum by (pod) (container_memory_working_set_bytes{namespace="banking", container!="POD", container!=""}) / 1024 / 1024
+```
+Working-set memory per pod. Crossing the memory limit → OOM-kill.
+
+**Query 14 — Active goroutines per service (Go health)**
+```promql
+go_goroutines{namespace="banking"}
+```
+A steadily growing number is a classic goroutine-leak signature (often a missing
+`defer cancel()` on a context).
+
+**Query 15 — Go GC time (seconds/sec)**
+```promql
+rate(go_gc_duration_seconds_sum{namespace="banking"}[5m])
+```
+Sustained high values (>0.1 s/s) indicate memory pressure.
+
+**Query 16 — Active firing alerts**
+```promql
+ALERTS{alertstate="firing"}
+```
+You'll always see at least **`Watchdog`** — kube-prometheus-stack's built-in
+heartbeat alert, designed to *always* fire (if it stops, your monitoring pipeline
+is broken). A healthy cluster shows just `Watchdog`; anything else is a real
+signal. (We rely on kube-prometheus-stack's default alert rules — no custom
+`PrometheusRule` added.)
+
+---
+
+## Alertmanager
+
+Open **`https://vijaygiduthuri.in/alertmanager/`** to see firing alerts, silences,
+and history. On a healthy cluster only the `Watchdog` heartbeat is active.
+
+To make an alert **actually fire** (for testing), push a Deployment into
+`CrashLoopBackOff` with a bad image — the default `KubePodCrashLooping` rule fires
+after a few minutes:
+```bash
+# bad image → pod fails to pull + restarts in a loop
+kubectl -n banking set image deployment/auth-service-deployment \
+  auth-service=nonexistent.example.com/bad-image:404
+
+# watch it in Prometheus: ALERTS{alertname="KubePodCrashLooping"}  (pending -> firing)
+
+# revert when done:
+kubectl -n banking rollout undo deployment/auth-service-deployment
+```
+Wiring firing alerts to a real receiver (Slack, PagerDuty, email) is done in the
+Alertmanager config (`alertmanager.config` in the kube-prometheus-stack values) —
+out of scope here; firing alerts just sit in the UI until a receiver is added.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
