@@ -27,6 +27,7 @@ spec:
           useSecret: false
         serviceAccount:
           server:
+            name: velero # MUST be "velero" to match the IRSA trust (velero:velero)
             annotations:
               eks.amazonaws.com/role-arn: arn:aws:iam::118178010323:role/banking-dev-velero-irsa
         configuration:
