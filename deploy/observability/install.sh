@@ -21,7 +21,9 @@ echo ">>> tempo"
 helm upgrade --install tempo grafana/tempo -n "$NS" -f "$DIR/values/tempo.yaml" --wait --timeout 5m
 
 echo ">>> loki + promtail"
-helm upgrade --install loki grafana/loki-stack -n "$NS" -f "$DIR/values/loki-stack.yaml" --wait --timeout 5m
+# Release name MUST be "loki-stack" so the service is loki-stack (matches the
+# Grafana Loki datasource URL in kube-prometheus-stack values, and the Argo app).
+helm upgrade --install loki-stack grafana/loki-stack -n "$NS" -f "$DIR/values/loki-stack.yaml" --wait --timeout 5m
 
 echo ">>> opentelemetry-collector"
 helm upgrade --install otel-collector open-telemetry/opentelemetry-collector \
