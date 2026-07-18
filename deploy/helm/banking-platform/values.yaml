@@ -364,6 +364,6 @@ ingress:
   enabled: true
   className: traefik
   host: vijaygiduthuri.in
-  tls: false # Phase E flips this to true (cert-manager auto-issues banking-tls)
+  tls: true # cert-manager auto-issues banking-tls via ingress-shim
   tlsSecretName: banking-tls
   clusterIssuer: letsencrypt-prod
