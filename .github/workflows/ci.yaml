@@ -172,7 +172,7 @@ jobs:
 
       # Push only after a clean scan, only on push to main. PRs build+scan (gate).
       - name: Push image to ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v6
         with:
           context: ${{ steps.img.outputs.context }}
@@ -193,7 +193,7 @@ jobs:
     name: update-gitops
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     steps:
