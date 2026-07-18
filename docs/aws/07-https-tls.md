@@ -297,6 +297,13 @@ kubectl get secret banking-tls -n banking -o yaml \
 > renewal (~day 75) re-run these two copies — or install
 > [reflector](https://github.com/emberstack/kubernetes-reflector) to auto-propagate.
 
+> ⚠️ **Set an explicit `priority` on these routes.** The banking app is a plain
+> k8s `Ingress` whose router is `Host(...) && PathPrefix(\`/\`)`. Traefik derives
+> router priority from **rule length**, so that `/` router can out-rank a bare
+> `PathPrefix(\`/argocd\`)` — and then **every path falls through to the frontend
+> SPA** (which serves `index.html` for any URL, so it looks like a redirect to the
+> app). Give each sub-path route `priority: 100` so it always wins over `/`.
+
 ### 5b — Argo CD IngressRoute (HTTPS)
 ```bash
 kubectl apply -f - <<EOF
@@ -310,6 +317,7 @@ spec:
   routes:
     - match: Host(\`${HOSTNAME_APP}\`) && PathPrefix(\`/argocd\`)
       kind: Rule
+      priority: 100          # beat the app's Host && PathPrefix("/") router
       services:
         - name: argocd-server
           port: 80
@@ -329,6 +337,7 @@ spec:
   routes:
     - match: Host(\`${HOSTNAME_APP}\`) && PathPrefix(\`/grafana\`)
       kind: Rule
+      priority: 100
       services:
         - { name: kube-prometheus-stack-grafana, port: 80 }
   tls: { secretName: banking-tls }
@@ -341,6 +350,7 @@ spec:
   routes:
     - match: Host(\`${HOSTNAME_APP}\`) && PathPrefix(\`/prometheus\`)
       kind: Rule
+      priority: 100
       services:
         - { name: kube-prometheus-stack-prometheus, port: 9090 }
   tls: { secretName: banking-tls }
@@ -353,6 +363,7 @@ spec:
   routes:
     - match: Host(\`${HOSTNAME_APP}\`) && PathPrefix(\`/alertmanager\`)
       kind: Rule
+      priority: 100
       services:
         - { name: kube-prometheus-stack-alertmanager, port: 9093 }
   tls: { secretName: banking-tls }
@@ -440,6 +451,7 @@ catch-all.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| **`/argocd`, `/grafana`, `/prometheus`, `/alertmanager` all show the banking app** (SPA) | The app's `PathPrefix(\`/\`)` router out-ranks the sub-path routers (Traefik priority = rule length), so requests fall through to the frontend, which serves `index.html` for any path — a **200 that looks like the real page**. Verify with the body, not the status: `curl -s https://${HOSTNAME_APP}/grafana/api/health` should be JSON, not HTML. | Set **`priority: 100`** on each sub-path IngressRoute (5b/5c). Check live priorities: `kubectl -n traefik exec deploy/traefik -- wget -qO- http://localhost:8080/api/http/routers`. |
 | `Certificate` stuck `READY=False` | HTTP-01 can't reach `http://<host>/.well-known/acme-challenge/…` | `curl http://${HOSTNAME_APP}/.well-known/acme-challenge/test` must return 404 (not refused). `kubectl -n banking get challenges` shows the probed URL. DNS must resolve (Phase 5). |
 | Browser "CERT_AUTHORITY_INVALID" | Cert not ready, or hitting the NLB by hostname without the `Host` header (Traefik serves a default self-signed cert) | Confirm `banking-tls` `READY=True`; curl the real hostname, not the NLB. |
 | Rate-limited by Let's Encrypt | Too many prod issuances | Use the **staging** issuer while iterating; prod limit is 5/week/domain (rolling). |
