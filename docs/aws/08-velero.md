@@ -104,10 +104,12 @@ snapshot alternative is described at the end.
 ## Step 1 — AWS resources (Terraform): S3 bucket + IAM + IRSA
 
 Velero needs an **S3 bucket** for backups and an **IAM role** (assumed via IRSA,
-so **no static keys** in the cluster). We add these as a Terraform module,
-matching the rest of the project.
+so **no static keys** in the cluster). These are **already committed** as an
+optional, standalone Terraform stack (`terraform/modules/velero/` +
+`terraform/velero/`) — kept out of `environments/dev` on purpose. The module
+contents are shown below for reference; you don't need to create them.
 
-Create `terraform/modules/velero/main.tf`:
+`terraform/modules/velero/main.tf`:
 ```hcl
 # S3 bucket for Velero backups (object storage for k8s objects + kopia data).
 resource "aws_s3_bucket" "this" {
@@ -203,32 +205,50 @@ output "bucket_name"   { value = aws_s3_bucket.this.bucket }
 output "irsa_role_arn" { value = aws_iam_role.velero.arn }
 ```
 
-Wire it into `terraform/environments/dev/main.tf`:
+### The standalone root — apply ONLY Velero
+
+The module is **not** wired into `environments/dev` (Velero is optional — a normal
+infra apply must never create it). Instead it's driven by a small standalone root
+at **`terraform/velero/`** with its **own state** (`dev/velero.tfstate`). It reads
+the running cluster's OIDC provider via a data source, so it needs nothing from
+the Phase-1 stack — just that the cluster exists.
+
+`terraform/velero/main.tf` (already committed):
 ```hcl
-module "velero" {
-  source            = "../../modules/velero"
-  name              = var.name                       # banking-dev
-  bucket_name       = "banking-velero-backups-${data.aws_caller_identity.current.account_id}"
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_provider     = replace(module.eks.cluster_oidc_issuer_url, "https://", "")
+data "aws_caller_identity" "current" {}
+data "aws_eks_cluster" "this" { name = var.cluster_name }   # banking-dev
+
+locals {
+  oidc_issuer   = data.aws_eks_cluster.this.identity[0].oidc[0].issuer
+  oidc_provider = replace(local.oidc_issuer, "https://", "")
+  oidc_arn      = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${local.oidc_provider}"
+  bucket_name   = "banking-velero-backups-${data.aws_caller_identity.current.account_id}"
 }
 
-output "velero_irsa_role_arn" { value = module.velero.irsa_role_arn }
-output "velero_bucket"        { value = module.velero.bucket_name }
+module "velero" {
+  source            = "../modules/velero"
+  name              = var.name
+  bucket_name       = local.bucket_name
+  oidc_provider_arn = local.oidc_arn
+  oidc_provider     = local.oidc_provider
+}
 ```
+It also ships `backend.tf` (key `dev/velero.tfstate`), `providers.tf`,
+`variables.tf`, `outputs.tf` — all committed.
 
-> ℹ️ The `eks` module already exposes `oidc_provider_arn`. For the issuer URL,
-> add `output "cluster_oidc_issuer_url" { value = module.eks.cluster_oidc_issuer_url }`
-> to `terraform/modules/eks/outputs.tf` if it isn't there yet.
-
-Apply:
+**Apply just this stack:**
 ```bash
-cd terraform/environments/dev
-terraform init      # picks up the new module
-terraform apply     # creates the bucket + IAM + IRSA role
-terraform output velero_irsa_role_arn   # e.g. arn:aws:iam::118178010323:role/banking-dev-velero-irsa
+cd terraform/velero
+terraform init                 # its own state — separate from the Phase-1 infra
+terraform apply                # creates ONLY: S3 bucket + IAM policy + IRSA role
+terraform output velero_irsa_role_arn   # arn:aws:iam::118178010323:role/banking-dev-velero-irsa
 terraform output velero_bucket          # banking-velero-backups-118178010323
 ```
+
+> ✅ **This never touches the core infra.** The Phase-1 apply (`environments/dev`)
+> and this Velero apply have separate state files, so you can `terraform destroy`
+> Velero on its own later (`cd terraform/velero && terraform destroy`) without
+> affecting the cluster.
 
 ---
 
