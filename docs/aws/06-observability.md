@@ -113,17 +113,17 @@ helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheu
 helm upgrade --install tempo grafana/tempo \
   -n observability -f deploy/observability/values/tempo.yaml --wait --timeout 5m
 
-# logs
-helm upgrade --install loki grafana/loki-stack \
+# logs — release name MUST be "loki-stack" (Grafana's Loki datasource URL points
+# at the loki-stack Service; a different release name → 502 / no logs in Grafana)
+helm upgrade --install loki-stack grafana/loki-stack \
   -n observability -f deploy/observability/values/loki-stack.yaml --wait --timeout 5m
 
 # OTLP ingest
 helm upgrade --install otel-collector open-telemetry/opentelemetry-collector \
   -n observability -f deploy/observability/values/otel-collector.yaml --wait --timeout 5m
 
-# our ServiceMonitor + custom dashboard
-kubectl apply -f deploy/observability/servicemonitor.yaml
-kubectl apply -f deploy/observability/dashboards-configmap.yaml
+# our ServiceMonitor + dashboards (servicemonitor + both dashboard ConfigMaps)
+kubectl apply -f deploy/observability/manifests/
 ```
 
 > 📌 Install **kube-prometheus-stack first** — it brings the Prometheus Operator
@@ -227,12 +227,22 @@ kubectl -n observability port-forward svc/kube-prometheus-stack-grafana 3000:80
 # http://localhost:3000   (admin / prom-operator — change it)
 ```
 
-> 🔑 The kube-prometheus-stack default Grafana login is `admin` /
-> `prom-operator`. Change it on first login (or set `grafana.adminPassword` in
-> the values file / a Secret).
+> 🔑 Login is `admin` / **`admin`** (our `grafana.adminPassword: admin` in
+> `values/kube-prometheus-stack.yaml`). Change it for anything real.
+>
+> ⚠️ **Grafana here has no PVC (ephemeral).** Its SQLite DB lives on `emptyDir`,
+> so **anything changed in the UI — the admin password, hand-built dashboards —
+> is lost when the pod restarts** and reverts to the provisioned values. That's
+> why all dashboards are provisioned **as code** (ConfigMaps labeled
+> `grafana_dashboard`), which *do* survive restarts. Want durable UI state? Add a
+> PVC via `grafana.persistence` in the values.
 
 Explore:
-- **Banking Platform — Services** dashboard (request rate, p95 latency, 5xx by service).
+- **Banking — Service Detail (per service)** dashboard — pick a service from the
+  `Service` dropdown to see its **running pods, request rate by status, p50/p95/p99
+  latency, CPU, memory, and live Loki logs**, all filtered to that one service.
+  (Provisioned from `deploy/observability/manifests/service-detail-dashboard.yaml`.)
+- **Banking Platform — Services** dashboard (fleet-wide request rate, p95, 5xx).
 - Bundled **Kubernetes / Nodes / Pods** dashboards.
 - **Explore → Loki**: click a log line's `trace_id` → it jumps to the trace in
   **Tempo** (log↔trace correlation); from a Tempo span, jump back to its logs.
@@ -261,8 +271,10 @@ HTTPS routes for `/grafana`, `/prometheus`, `/alertmanager` under
 | `up{namespace="banking"}` empty | ServiceMonitor not matching | Confirm services keep label `app.kubernetes.io/part-of: banking-platform` and a port named `http`; `serviceMonitorSelectorNilUsesHelmValues=false` is set in values. |
 | No traces in Tempo | OTEL disabled or wrong endpoint | Check `OTEL_ENABLED=true` and endpoint `otel-collector.observability.svc.cluster.local:4317`; `kubectl logs` the collector for OTLP receive errors. |
 | Loki empty | Promtail not shipping | `kubectl get pods -n observability` (promtail DaemonSet, one per node); check its logs for scrape/permission errors. |
+| **Grafana logs panel empty / Loki datasource 502** | Grafana's Loki datasource URL doesn't match the Loki **Service name**. The `loki-stack` chart's Service is named after the release → **must be `loki-stack`** (`http://loki-stack.observability.svc.cluster.local:3100`). Install the chart with release name `loki-stack`. | Confirm `kubectl -n observability get svc \| grep loki` shows `loki-stack`; the datasource URL in `values/kube-prometheus-stack.yaml` matches it. |
+| Log stream filter: which label? | Promtail labels logs with `namespace`, `app` (=service name), `pod`, `container` | Filter by service with `{namespace="banking", app="<service>"}`. |
 | Grafana Tempo datasource errors | Wrong port | Datasource URL must be `http://tempo:3200` (Tempo HTTP), **not** 3100 (that's Loki). |
-| Grafana login fails | Default creds | `admin` / `prom-operator` (kube-prometheus-stack default), not `admin`/`admin`. |
+| Grafana login fails | Creds | `admin` / `admin` (our `grafana.adminPassword`). Note UI password changes reset on pod restart (ephemeral Grafana — no PVC). |
 
 ---
 
