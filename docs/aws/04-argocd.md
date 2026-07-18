@@ -232,7 +232,7 @@ kubectl apply -f deploy/argocd/bootstrap/root-app.yaml   # app-of-apps root
 
 kubectl -n argocd get applications
 # platform-root, cluster-storage, metrics-server, banking-platform, cert-manager, cert-manager-issuer,
-# kube-prometheus-stack, loki-stack, tempo, otel-collector, observability-extras
+# kube-prometheus-stack, loki-stack, tempo, otel-collector, observability-extras, velero
 ```
 
 That's it — Argo CD clones the repo and reconciles all of them. The rest of this
