@@ -300,6 +300,9 @@ spec:
           useSecret: false
         serviceAccount:
           server:
+            name: velero    # ⚠️ MUST be "velero" — the IRSA trust policy is scoped to
+                            # system:serviceaccount:velero:velero. The chart otherwise
+                            # names it "velero-server", so S3 auth fails (BSL Unavailable).
             annotations:
               eks.amazonaws.com/role-arn: arn:aws:iam::118178010323:role/banking-dev-velero-irsa
         configuration:
@@ -328,14 +331,23 @@ spec:
       - ServerSideApply=true
 ```
 
-Also allow the Velero Helm repo in the AppProject — add this line to
-`deploy/argocd/bootstrap/project.yaml` under `sourceRepos:` and re-apply it:
+The `banking` AppProject must **allow the Velero Helm repo AND the `velero`
+namespace destination**. Both are **already committed** in
+`deploy/argocd/bootstrap/project.yaml`:
 ```yaml
-    - "https://vmware-tanzu.github.io/helm-charts"
+  sourceRepos:
+    - "https://vmware-tanzu.github.io/helm-charts"   # ← already present
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: velero }   # ← already present
 ```
+> If you edited the project after Argo CD was bootstrapped, re-apply it so the
+> live AppProject picks up the change: `kubectl apply -f deploy/argocd/bootstrap/project.yaml`
+> (otherwise the velero app fails with `InvalidSpecError: ... do not match any of
+> the allowed destinations`).
+
+Commit the velero app and let the app-of-apps create it:
 ```bash
-kubectl apply -f deploy/argocd/bootstrap/project.yaml
-git add deploy/argocd/apps/velero.yaml deploy/argocd/bootstrap/project.yaml
+git add deploy/argocd/apps/velero.yaml
 git commit -m "argocd: add velero backup/DR app"
 git push origin main
 kubectl -n argocd annotate app platform-root argocd.argoproj.io/refresh=hard --overwrite
@@ -482,7 +494,8 @@ Instead of kopia file backups, use native EBS snapshots:
 
 | Symptom | Likely cause | Fix |
 | ------- | ------------ | --- |
-| `backup-location get` shows `Unavailable` | IRSA role/policy wrong, or bucket/region mismatch | Check the SA annotation = the `velero_irsa_role_arn` output; bucket + region match Step 1; `kubectl -n velero logs deploy/velero`. |
+| `backup-location get` shows `Unavailable` | **SA name ≠ IRSA trust** (chart names it `velero-server`, trust expects `velero:velero`), or role/bucket/region wrong | Set `serviceAccount.server.name: velero` in the Helm values (Step 3); confirm `kubectl -n velero get sa velero` has the role annotation; bucket + region match Step 1; `kubectl -n velero logs deploy/velero`. |
+| velero app `InvalidSpecError: ... allowed destinations` | AppProject missing the `velero` namespace destination | Add `{ namespace: velero }` to `project.yaml` destinations and re-apply it. |
 | Backup `PartiallyFailed`, PVCs skipped | Forgot `--default-volumes-to-fs-backup` (FSB) or node-agent not running | Add the flag; `kubectl -n velero get pods` (node-agent DaemonSet, one per node). |
 | `AccessDenied` writing to S3 | IAM policy missing S3 actions / wrong bucket ARN | Re-check the `aws_iam_policy_document.velero` S3 statements + bucket name. |
 | Restore leaves pods `Pending` | New PVCs need the `gp3` StorageClass | Ensure `cluster-storage` app (gp3) exists before restoring PVCs. |
