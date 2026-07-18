@@ -231,7 +231,7 @@ kubectl apply -f deploy/argocd/bootstrap/project.yaml    # AppProject "banking"
 kubectl apply -f deploy/argocd/bootstrap/root-app.yaml   # app-of-apps root
 
 kubectl -n argocd get applications
-# platform-root, cluster-storage, banking-platform, cert-manager, cert-manager-issuer,
+# platform-root, cluster-storage, metrics-server, banking-platform, cert-manager, cert-manager-issuer,
 # kube-prometheus-stack, loki-stack, tempo, otel-collector, observability-extras
 ```
 

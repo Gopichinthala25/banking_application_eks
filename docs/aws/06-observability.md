@@ -256,9 +256,38 @@ HTTPS routes for `/grafana`, `/prometheus`, `/alertmanager` under
 (`serve_from_sub_path`, `routePrefix`) — are configured in **Phase 7**
 (Traefik IngressRoutes + TLS), so everything lives on the single app host.
 
-> ⚠️ Keep **Prometheus** and **Alertmanager** behind auth or an IP allowlist —
-> they expose cluster internals and have no login of their own. Grafana has auth;
-> the other two don't.
+> ⚠️ **Prometheus** and **Alertmanager** have **no login** of their own. On this
+> learning cluster we expose them openly; for anything real, put a Traefik
+> basic-auth/IP-allowlist middleware in front or keep them port-forward-only.
+
+---
+
+## Step 7 — metrics-server (required for HPA autoscaling)
+
+The chart deploys **HPAs** for every service, but they need the Kubernetes
+**resource-metrics API** (CPU/memory) — which **EKS does not ship**. Without
+metrics-server, HPAs show `cpu: <unknown>/70%` and never scale, and
+`kubectl top` fails.
+
+**GitOps (default):** it's an Argo CD app
+([deploy/argocd/apps/metrics-server.yaml](../../deploy/argocd/apps/metrics-server.yaml)),
+so it installs automatically when you bootstrap Argo CD (Phase 4). Nothing to do.
+
+**Manual (non-GitOps) alternative:**
+```bash
+helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+helm upgrade --install metrics-server metrics-server/metrics-server \
+  -n kube-system --set 'args={--kubelet-insecure-tls}' --wait
+```
+> `--kubelet-insecure-tls` is **required on EKS** — the kubelet's serving cert
+> isn't verifiable by metrics-server by default, so without it the pod stays
+> `Running` but the metrics API returns errors.
+
+**Verify:**
+```bash
+kubectl top nodes                    # shows CPU/MEM per node
+kubectl -n banking get hpa           # TARGETS show real % (e.g. cpu: 4%/70%), not <unknown>
+```
 
 ---
 

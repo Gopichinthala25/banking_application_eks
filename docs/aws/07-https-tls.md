@@ -400,58 +400,38 @@ Open each in a browser — expect the **🔒 padlock** (Let's Encrypt issuer):
 
 ---
 
-## Step 7 — Redirect HTTP → HTTPS (catch-all)
+## Step 7 — Redirect HTTP → HTTPS (Traefik entrypoint)
 
-With everything on `websecure`, plain `http://vijaygiduthuri.in/` now 404s
-(nothing on the `web` entrypoint). Add a Traefik Middleware + catch-all
-IngressRoute to 308-redirect HTTP → HTTPS:
+The app + all UIs are served on **both** `web` (80) and `websecure` (443). Force
+HTTPS with a redirect on the Traefik **`web` entrypoint** — one setting that
+covers *every* route (app, `/argocd`, `/grafana`, …), and `allowACMEByPass` keeps
+cert-manager's HTTP-01 renewals working:
 
 ```bash
-kubectl apply -f - <<'EOF'
-apiVersion: traefik.io/v1alpha1
-kind: Middleware
-metadata:
-  name: redirect-to-https
-  namespace: banking
-spec:
-  redirectScheme:
-    scheme: https
-    permanent: true          # 308 Permanent Redirect
----
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: http-to-https-redirect
-  namespace: banking
-spec:
-  entryPoints: [web]         # ONLY HTTP
-  routes:
-    - match: HostRegexp(`.+`)   # every host (Traefik 3 syntax)
-      kind: Rule
-      priority: 1               # lowest — cert-manager's HTTP-01 route wins
-      middlewares:
-        - name: redirect-to-https
-      services:
-        - name: frontend        # never actually reached; middleware short-circuits
-          port: 8080
-EOF
+helm upgrade traefik traefik/traefik -n traefik --reuse-values \
+  --set ports.web.http.redirections.entryPoint.to=websecure \
+  --set ports.web.http.redirections.entryPoint.scheme=https \
+  --set ports.web.http.redirections.entryPoint.permanent=true \
+  --set ports.web.allowACMEByPass=true \
+  --wait --timeout=4m
 ```
+
+> **Why the entrypoint, not a Middleware + catch-all IngressRoute?** Traefik ranks
+> routers by **rule length**, so a low-priority catch-all on `web` *loses* to the
+> app's `Host && PathPrefix("/")` router — the app would keep serving plain HTTP.
+> The **entrypoint** redirect runs *before* routing, so it catches everything.
+> `allowACMEByPass=true` lets the `/.well-known/acme-challenge/…` path through for
+> renewals. `--reuse-values` keeps the NLB annotations, so the load balancer is
+> unchanged. (The chart key is `ports.web.http.redirections.entryPoint`, **not**
+> the older `ports.web.redirectTo`, which newer charts reject.)
 
 Verify:
 ```bash
 curl -sI "http://${HOSTNAME_APP}/" | awk '/^HTTP|^[Ll]ocation:/'
 # HTTP/1.1 308 Permanent Redirect
 # Location: https://vijaygiduthuri.in/
-curl -sIL -o /dev/null -w "%{http_code} %{url_effective}\n" "http://${HOSTNAME_APP}/"
-# 200 https://vijaygiduthuri.in/
+curl -s -o /dev/null -w "%{http_code}\n" "https://${HOSTNAME_APP}/"   # 200
 ```
-
-cert-manager renewals still work: its HTTP-01 solver creates a more-specific
-`/.well-known/acme-challenge/…` route on `web` that wins over this `priority: 1`
-catch-all.
-
-> ⚠️ The Traefik chart's `ports.web.redirectTo` key is rejected on chart v3x —
-> this Middleware pattern is the version-independent equivalent.
 
 ---
 
