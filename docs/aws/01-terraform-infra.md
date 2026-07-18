@@ -19,7 +19,7 @@ Terraform — **VPC, EKS, managed node group, ECR, S3, IAM/IRSA** — then conne
    │      └── IGW + NAT gateway(s)  ──► outbound internet             │
    │                                                                  │
    │   Private subnets (10.10.128.0/20, .144/20, .160/20 — 3 AZs)     │
-   │      └── EKS managed node group (2–5x t3.large)                  │
+   │      └── EKS managed node group (3–6x t3.xlarge)                │
    │                                                                  │
    │   EKS control plane (public endpoint) ◀── kubectl (your laptop) │
    │      OIDC provider ──► IRSA for pods (e.g. document-service→S3)  │
@@ -52,10 +52,9 @@ Terraform — **VPC, EKS, managed node group, ECR, S3, IAM/IRSA** — then conne
 | ----------------------------------------- | ------------------------------- | ---------------------------------------------------------- |
 | AWS account + billing enabled             | `aws sts get-caller-identity`   | https://portal.aws.amazon.com/billing/signup              |
 | IAM user/role with admin *(easy for learning)* | keys in `~/.aws/credentials` | IAM → Users → Create → access key                          |
-| **Terraform ≥ 1.5**                       | `terraform -version`            | https://developer.hashicorp.com/terraform/install         |
+| **Terraform ≥ 1.10** (needed for S3 `use_lockfile`) | `terraform -version`   | https://developer.hashicorp.com/terraform/install         |
 | **AWS CLI v2**                            | `aws --version`                 | https://docs.aws.amazon.com/cli/latest/userguide/install  |
 | `kubectl`                                 | `kubectl version --client`     | https://kubernetes.io/docs/tasks/tools/                    |
-| `eksctl` (for the EBS CSI IRSA role)      | `eksctl version`                | https://eksctl.io/installation/                            |
 | `helm` (for later phases)                 | `helm version`                  | https://helm.sh/docs/intro/install/                       |
 | Repo cloned locally                       | `ls terraform/environments/dev` | `git clone <your-repo>.git`                               |
 
@@ -105,7 +104,7 @@ terraform/
 │   ├── s3/      # private, encrypted, versioned bucket (documents/statements)
 │   └── route53/ # apex hosted zone (+ optional apex ALIAS -> NLB, Phase 5)
 └── environments/
-    ├── dev/     # 10.10.0.0/16, single NAT, t3.large  (this doc uses dev)
+    ├── dev/     # 10.10.0.0/16, single NAT, t3.xlarge  (this doc uses dev)
     ├── qa/      # 10.20.0.0/16, single NAT
     └── prod/    # 10.30.0.0/16, one NAT per AZ (HA), t3.xlarge, HPA on
 ```
@@ -130,17 +129,17 @@ Sensible defaults are set; the ones you might change:
 | `cluster_name`        | `banking-dev`        | EKS cluster name                                     |
 | `vpc_cidr`            | `10.10.0.0/16`       | VPC address space                                    |
 | `azs`                 | 3 × `us-east-1a/b/c` | AZs to spread subnets across                         |
-| `node_instance_types` | `["t3.large"]`       | Node size (bump for the full app + observability)    |
-| `node_min/max/desired`| `2 / 5 / 3`          | Managed node group autoscaling bounds                |
+| `node_instance_types` | `["t3.xlarge"]`      | Node size — t3.xlarge fits the full app + observability |
+| `node_min/max/desired`| `3 / 6 / 4`          | Managed node group autoscaling bounds                |
 | `single_nat_gateway`  | `true`               | One NAT (cheap) for dev; prod uses one per AZ        |
 | `ecr_repository_name` | `banking-platform`   | The single ECR repo all services push to             |
 | `domain_name`         | `vijaygiduthuri.in`  | Apex domain hosted in Route 53 (delegated from GoDaddy) |
 | `create_apex_record`  | `false`              | Phase 5 flips this to `true` to add the apex ALIAS → NLB |
 
 > 💡 **Sizing reality:** 30 Go services + gateway + Postgres/Redis/Kafka +
-> Argo CD + the observability stack is a lot. `t3.large` (2 vCPU/8 GB) × 3 is a
-> comfortable floor; go `t3.xlarge` (as prod does) if you'll run everything on
-> one cluster.
+> Argo CD + the observability stack is a lot. The dev default is **`t3.xlarge`
+> (4 vCPU/16 GB) × 4** — that's what we ran the full stack on. `t3.large` × 3 is
+> too tight once observability + Argo are added (pods go `Pending`).
 
 ---
 

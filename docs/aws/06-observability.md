@@ -224,7 +224,7 @@ the `/grafana` sub-path on the single app host.
 **Port-forward (any time, no ingress needed):**
 ```bash
 kubectl -n observability port-forward svc/kube-prometheus-stack-grafana 3000:80
-# http://localhost:3000   (admin / prom-operator — change it)
+# http://localhost:3000   (admin / admin — see note below)
 ```
 
 > 🔑 Login is `admin` / **`admin`** (our `grafana.adminPassword: admin` in

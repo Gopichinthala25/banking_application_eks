@@ -197,25 +197,24 @@ Our app is a standard `Ingress` with a `cert-manager.io/cluster-issuer`
 annotation baked in, so we just toggle values and let Argo + cert-manager do the
 rest — no manual `Certificate`, no auto-sync override.
 
-Edit `deploy/helm/banking-platform/values.yaml`:
+The chart's `ingress` block in `deploy/helm/banking-platform/values.yaml` is
+**already set to `tls: true`** in the repo:
 ```yaml
 ingress:
   enabled: true
   className: traefik
   host: vijaygiduthuri.in          # from Phase 5
-  tls: true                         # 👈 was false
+  tls: true                         # cert-manager auto-issues banking-tls
   tlsSecretName: banking-tls
   clusterIssuer: letsencrypt-prod
 ```
 
-Commit → Argo syncs → cert-manager's ingress-shim sees the Ingress TLS block +
-issuer annotation and issues the cert into `banking-tls`:
-```bash
-git add deploy/helm/banking-platform/values.yaml
-git commit -m "phase 7: enable HTTPS on the app ingress"
-git push origin main
-kubectl -n argocd annotate app banking-platform argocd.argoproj.io/refresh=hard --overwrite
-```
+> 📌 **You don't need to edit anything here** — because `tls: true` is committed,
+> cert-manager's ingress-shim tries to issue `banking-tls` as soon as the app
+> deploys (Phase 4). If DNS isn't delegated yet, the cert just sits `READY=False`
+> and **auto-issues the moment Phase 5 DNS resolves** (HTTP-01 needs the public
+> name). No manual flip. *(If you ever want the app on plain HTTP first, set
+> `tls: false`, and flip it back to `true` after DNS — then commit.)*
 
 Wait for the cert, then confirm it's a real Let's Encrypt cert:
 ```bash
@@ -284,14 +283,23 @@ namespace**, so copy `banking-tls` into `argocd` + `observability`; (2) apply th
 `websecure` IngressRoutes.
 
 ### 5a — Copy the TLS Secret into the other namespaces
+Extract the cert + key and recreate a clean Secret in each namespace (avoids
+carrying over `resourceVersion`/`uid`/owner metadata that a raw `-o yaml` copy
+would):
 ```bash
-kubectl get secret banking-tls -n banking -o yaml \
-  | sed 's/namespace: banking/namespace: argocd/' \
-  | kubectl apply -f -
-
-kubectl get secret banking-tls -n banking -o yaml \
-  | sed 's/namespace: banking/namespace: observability/' \
-  | kubectl apply -f -
+CRT=$(kubectl -n banking get secret banking-tls -o jsonpath='{.data.tls\.crt}')
+KEY=$(kubectl -n banking get secret banking-tls -o jsonpath='{.data.tls\.key}')
+for ns in argocd observability; do
+kubectl apply -n "$ns" -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata: { name: banking-tls, namespace: $ns }
+type: kubernetes.io/tls
+data:
+  tls.crt: ${CRT}
+  tls.key: ${KEY}
+EOF
+done
 ```
 > 💡 cert-manager only renews the **original** Secret (`banking` ns). After a
 > renewal (~day 75) re-run these two copies — or install

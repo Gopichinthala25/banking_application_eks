@@ -115,6 +115,10 @@ spec:
   routes:
     - match: PathPrefix(`/argocd`)
       kind: Rule
+      priority: 100    # MUST beat the app's Host && PathPrefix("/") router (once the
+                       # banking app is deployed in Step 5) — else /argocd falls
+                       # through to the frontend SPA. Traefik ranks by rule length,
+                       # so set this explicitly.
       services:
         - name: argocd-server
           port: 80
