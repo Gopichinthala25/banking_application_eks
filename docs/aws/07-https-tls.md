@@ -279,6 +279,15 @@ git push origin main
 kubectl -n argocd annotate app kube-prometheus-stack argocd.argoproj.io/refresh=hard --overwrite
 ```
 
+Changing these values rolls the Grafana, Prometheus, and Alertmanager pods. Watch
+them recreate and come back healthy before moving on (Ctrl+C to stop watching):
+
+```bash
+kubectl get pods -n observability -w
+# grafana + prometheus-… + alertmanager-… terminate and restart with the new
+# https config; wait until all show Running and fully READY (e.g. 3/3, 2/2)
+```
+
 ---
 
 ## Step 5 — HTTPS routes for Argo CD / Grafana / Prometheus / Alertmanager
