@@ -338,6 +338,99 @@ kubectl -n banking get pods         # ~35 pods Running 1/1 after ~90s
 
 ---
 
+### 5c — Verify EVERYTHING Argo CD created (all apps + all namespaces)
+
+Step 5b applies the app-of-apps, which fans out into **12 Argo CD Applications**
+across several namespaces — not just `banking-platform`. Use the commands below to
+confirm the whole cluster is healthy.
+
+**1. All Argo CD applications at a glance** (the master health view):
+```bash
+kubectl get applications -n argocd
+```
+Expected — all `Synced` + `Healthy` (only `platform-root` may read `OutOfSync`; see note below):
+```
+NAME                    SYNC STATUS   HEALTH STATUS
+banking-platform        Synced        Healthy
+cert-manager            Synced        Healthy
+cert-manager-issuer     Synced        Healthy
+cluster-storage         Synced        Healthy
+kube-prometheus-stack   Synced        Healthy
+loki-stack              Synced        Healthy
+metrics-server          Synced        Healthy
+observability-extras    Synced        Healthy
+otel-collector          Synced        Healthy
+platform-root           OutOfSync     Healthy
+tempo                   Synced        Healthy
+velero                  Synced        Healthy
+```
+
+**What each app deploys and where it runs:**
+
+| Namespace       | What's there                                                                                          | Argo app(s)                                                              |
+|-----------------|-------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| `argocd`        | 7 Argo CD components                                                                                   | (installed in Step 2)                                                    |
+| `banking`       | 30 microservices + api-gateway + frontend + postgres + kafka + redis                                   | `banking-platform`                                                       |
+| `cert-manager`  | controller, cainjector, webhook + the ClusterIssuer                                                    | `cert-manager`, `cert-manager-issuer`                                    |
+| `kube-system`   | EBS CSI driver, metrics-server, coredns                                                                | `cluster-storage`, `metrics-server`                                      |
+| `observability` | grafana, prometheus, alertmanager, loki, promtail, tempo, otel-collector, node-exporters              | `kube-prometheus-stack`, `loki-stack`, `tempo`, `otel-collector`, `observability-extras` |
+| `traefik`       | 2 Traefik ingress pods (the NLB)                                                                       | (installed in Step 2 / docs 02)                                          |
+| `velero`        | velero server + node-agents                                                                            | `velero`                                                                 |
+
+**2. All pods in the whole cluster:**
+```bash
+kubectl get pods -A
+```
+
+**3. Per Argo-app namespaces — check the "other" apps individually:**
+```bash
+# cert-manager (+ the issuer and any TLS certs)
+kubectl get pods -n cert-manager
+kubectl get clusterissuer,certificate,certificaterequest -A
+
+# storage (EBS CSI) + metrics-server
+kubectl get pods -n kube-system
+kubectl get storageclass                        # cluster-storage → gp3 (default) + gp2
+
+# observability stack (kube-prometheus-stack, loki, tempo, otel, extras)
+kubectl get pods -n observability
+kubectl get svc  -n observability
+
+# velero
+kubectl get pods -n velero
+kubectl get backupstoragelocation -n velero     # PHASE should be "Available"
+
+# traefik ingress
+kubectl get pods -n traefik
+kubectl get svc  -n traefik                      # the AWS NLB (EXTERNAL-IP)
+```
+
+**4. One-shot cluster-wide overview:**
+```bash
+kubectl get applications -n argocd
+kubectl get pods,svc,ingressroute -A
+kubectl get pvc -A                               # postgres/kafka/redis/loki/prometheus volumes → Bound
+kubectl get nodes -o wide
+```
+
+**5. Drill into any single app** (replace `<app>`):
+```bash
+kubectl get application <app> -n argocd -o wide
+kubectl describe application <app> -n argocd | sed -n '/Status:/,$p'
+```
+
+> **Note — `platform-root` shows `OutOfSync` but `Healthy`:** this is the
+> app-of-apps root. As long as all 12 child apps are `Synced`, the root being
+> `OutOfSync` is cosmetic (a minor field drift Argo adds to the child Application
+> objects) and blocks nothing. To inspect the drift:
+> ```bash
+> kubectl get application platform-root -n argocd \
+>   -o jsonpath='{range .status.resources[?(@.status=="OutOfSync")]}{.kind}/{.name}: {.status}{"\n"}{end}'
+> ```
+> You can leave it as-is, or click **Sync** on `platform-root` in the Argo CD UI.
+
+---
+
 ## Step 6 — Verify the GitOps loop end-to-end
 
 ```
