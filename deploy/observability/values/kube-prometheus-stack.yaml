@@ -6,7 +6,7 @@ prometheus:
   prometheusSpec:
     retention: 12h
     # Served under /prometheus on the apex host (Traefik IngressRoute).
-    externalUrl: http://vijaygiduthuri.in/prometheus
+    externalUrl: https://vijaygiduthuri.in/prometheus
     routePrefix: /prometheus
     # Discover ServiceMonitors/PodMonitors in ALL namespaces (not just this release).
     serviceMonitorSelectorNilUsesHelmValues: false
@@ -19,7 +19,7 @@ prometheus:
 alertmanager:
   alertmanagerSpec:
     # Served under /alertmanager on the apex host (Traefik IngressRoute).
-    externalUrl: http://vijaygiduthuri.in/alertmanager
+    externalUrl: https://vijaygiduthuri.in/alertmanager
     routePrefix: /alertmanager
     resources:
       requests: { cpu: 25m, memory: 64Mi }
@@ -30,7 +30,7 @@ grafana:
   # Served under /grafana on the apex host (Traefik IngressRoute).
   grafana.ini:
     server:
-      root_url: http://vijaygiduthuri.in/grafana
+      root_url: https://vijaygiduthuri.in/grafana
       serve_from_sub_path: true
   defaultDashboardsEnabled: true
   service:
