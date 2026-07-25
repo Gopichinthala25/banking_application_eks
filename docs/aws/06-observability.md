@@ -282,6 +282,18 @@ spec:
 EOF
 ```
 
+**Confirm the IngressRoutes were created:**
+```bash
+kubectl get ingressroute -n observability
+# NAME                AGE
+# alertmanager-http   10s
+# grafana-http        10s
+# prometheus-http     10s
+
+# full detail for one (entrypoint, match rule, backend service):
+kubectl -n observability describe ingressroute grafana-http
+```
+
 Then open in your browser (or curl to verify — check the **body**, not just status,
 since the SPA returns `200` for any path):
 
