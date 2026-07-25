@@ -268,6 +268,15 @@ velero version --client-only     # Client: v1.18.1
 
 ## Step 3 — Install the Velero server (GitOps, Argo CD app)
 
+> ✅ **Already done if you bootstrapped Argo CD in Phase 4.** `deploy/argocd/apps/velero.yaml`
+> is part of the committed app-of-apps, so the Velero server + node-agents are
+> **already installed** — `kubectl -n velero get pods` shows them Running and
+> `kubectl -n argocd get app velero` is `Synced / Healthy`. **You do not need to
+> re-apply anything here.** Once Step 1's Terraform creates the S3 bucket + IRSA
+> role, the `default` BackupStorageLocation flips to `Available` on its own and you
+> can skip straight to Step 2 (CLI) / Step 4 (first backup). The rest of this step
+> is reference for *what* got installed and how to do it manually.
+
 Add `deploy/argocd/apps/velero.yaml` (the app-of-apps picks it up). It installs
 the Velero Helm chart with the **AWS plugin**, **IRSA** (no static keys), and the
 **node-agent** for file-system backups:
