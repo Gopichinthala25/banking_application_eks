@@ -247,7 +247,7 @@ Open in a browser:
 
 ---
 
-## Step 8 — Sanity-check Traefik's parsed routers
+## Step 8 (Optional) — Sanity-check Traefik's parsed routers
 
 If Step 7 fails, confirm Traefik actually accepted the route (a bad matcher
 silently disables a router):
@@ -267,7 +267,7 @@ includes the parse error.
 
 ---
 
-## Step 9 — NLB recreated → just re-apply Terraform
+## Step 9 (Optional) — NLB recreated → just re-apply Terraform
 
 The ALIAS **tracks the NLB's IPs automatically**, so node changes, `helm
 upgrade`, and pod restarts need no DNS action.
