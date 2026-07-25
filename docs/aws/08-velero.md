@@ -409,7 +409,7 @@ You should see `Phase: Completed` and PodVolumeBackups for `postgres-0` / `kafka
 
 ---
 
-## Step 5 — Scheduled daily backups (retention)
+## Step 5 (Optional) — Scheduled daily backups (retention)
 
 A `Schedule` CRD runs backups automatically and expires old ones (`--ttl`):
 ```bash
@@ -427,7 +427,7 @@ velero schedule get daily-banking -o yaml > deploy/velero/schedule-daily-banking
 
 ---
 
-## Step 6 — Disaster-recovery restore test (prove it works)
+## Step 6 (Optional, recommended) — Disaster-recovery restore test (prove it works)
 
 Simulate data loss and restore:
 
