@@ -162,7 +162,9 @@ If anything is `Pending`, jump to Troubleshooting (almost always the `gp3` PVC i
 
 ## Step 3 — Point the platform at the collector
 
-The Helm `values.yaml` already sets, for **every** service:
+The Helm values file — **`deploy/helm/banking-platform/values.yaml`** (full path
+from the repo root; the `otel:` block is near the top, around line 31) — already
+sets, for **every** service:
 
 ```yaml
 otel:
