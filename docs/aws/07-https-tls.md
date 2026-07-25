@@ -244,24 +244,29 @@ curl -s  "https://${HOSTNAME_APP}/api/v1/fx/rates" | head -c 120; echo
 ## Step 4 — Serve Grafana / Prometheus / Alertmanager under sub-paths
 
 Path-routing these UIs means they must know their sub-path (else assets/links
-break). Add to `deploy/observability/values/kube-prometheus-stack.yaml`:
+break). These keys already exist in
+`deploy/observability/values/kube-prometheus-stack.yaml` — if you did the Phase 6
+HTTP access step (doc 06, Step 5a) they're set to `http://`; now that TLS is in
+place, **change the scheme to `https://`** so the browser loads assets over HTTPS
+(a `root_url`/`externalUrl` of `http://` on an HTTPS page causes mixed-content
+breakage — the mirror image of the Phase 6 problem):
 
 ```yaml
 grafana:
   grafana.ini:
     server:
-      root_url: "https://vijaygiduthuri.in/grafana"
+      root_url: "https://vijaygiduthuri.in/grafana"   # was http:// in Phase 6
       serve_from_sub_path: true
 
 prometheus:
   prometheusSpec:
     routePrefix: /prometheus
-    externalUrl: https://vijaygiduthuri.in/prometheus
+    externalUrl: https://vijaygiduthuri.in/prometheus  # was http:// in Phase 6
 
 alertmanager:
   alertmanagerSpec:
     routePrefix: /alertmanager
-    externalUrl: https://vijaygiduthuri.in/alertmanager
+    externalUrl: https://vijaygiduthuri.in/alertmanager  # was http:// in Phase 6
 ```
 
 Commit → Argo re-syncs the `kube-prometheus-stack` app. (Argo CD itself already

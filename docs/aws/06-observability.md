@@ -297,9 +297,35 @@ curl -s  http://vijaygiduthuri.in/alertmanager/-/healthy     # OK
 curl -s  http://vijaygiduthuri.in/grafana/api/health         # {"database":"ok", ...}  (JSON, not HTML)
 ```
 
-> ℹ️ These are **manually applied**, not managed by Argo CD (kept out of GitOps on
-> purpose — Phase 7 replaces them with the HTTPS versions below). If you tear down
-> and redeploy, re-run this `kubectl apply`.
+> ⚠️ **The scheme in the values file must match how you browse.** Grafana embeds
+> its `root_url` into the HTML (all JS/CSS load from that absolute URL), and
+> Prometheus does the same with `--web.external-url`. If those are `https://` but
+> you open the page over `http://`, the browser tries to fetch assets over HTTPS
+> (no TLS yet in Phase 6) and the page renders **blank/broken** — even though
+> `curl` of a single endpoint looks fine. (Alertmanager uses relative asset paths,
+> so it's the exception that works either way.) For HTTP access, these are set to
+> `http://` in `deploy/observability/values/kube-prometheus-stack.yaml`:
+>
+> ```yaml
+> prometheus:
+>   prometheusSpec:
+>     externalUrl: http://vijaygiduthuri.in/prometheus   # http for Phase 6; Phase 7 flips to https
+> alertmanager:
+>   alertmanagerSpec:
+>     externalUrl: http://vijaygiduthuri.in/alertmanager
+> grafana:
+>   grafana.ini:
+>     server:
+>       root_url: http://vijaygiduthuri.in/grafana
+>       serve_from_sub_path: true
+> ```
+> This file **is** managed by Argo CD, so after editing it just `git push` and Argo
+> re-syncs (pods restart in ~2 min). **Phase 7 changes these three back to
+> `https://`** for TLS access.
+
+> ℹ️ The three `*-http` IngressRoutes above are **manually applied**, not managed by
+> Argo CD (kept out of GitOps on purpose — Phase 7 replaces them with the HTTPS
+> versions below). If you tear down and redeploy, re-run this `kubectl apply`.
 >
 > ⚠️ Once you do **Phase 7**, the `web` entrypoint gets an HTTP→HTTPS redirect, so
 > these HTTP URLs will start redirecting to `https://…`. That's expected — switch
