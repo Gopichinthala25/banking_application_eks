@@ -19,7 +19,7 @@ https://vijaygiduthuri.in/alertmanager   — Alertmanager
 > Set this once and reuse it below:
 > ```bash
 > export HOSTNAME_APP="vijaygiduthuri.in"     # 👈 your apex domain (from Phase 5)
-> export ACME_EMAIL="vijaygiduthuri67@gmail.com"        # 👈 Let's Encrypt expiry notices
+> export ACME_EMAIL="vijaygiduthuri@gmail.com"        # 👈 Let's Encrypt expiry notices
 > ```
 
 ---
@@ -173,7 +173,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: vijaygiduthuri67@gmail.com
+    email: vijaygiduthuri@gmail.com
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
