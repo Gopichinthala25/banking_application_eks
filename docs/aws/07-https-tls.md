@@ -319,6 +319,14 @@ done
 > renewal (~day 75) re-run these two copies — or install
 > [reflector](https://github.com/emberstack/kubernetes-reflector) to auto-propagate.
 
+**Verify the Secret landed in both namespaces:**
+```bash
+kubectl get secret banking-tls -n argocd
+kubectl get secret banking-tls -n observability
+# NAME          TYPE                DATA   AGE
+# banking-tls   kubernetes.io/tls   2      5s        (DATA=2 → tls.crt + tls.key)
+```
+
 > ⚠️ **Set an explicit `priority` on these routes.** The banking app is a plain
 > k8s `Ingress` whose router is `Host(...) && PathPrefix(\`/\`)`. Traefik derives
 > router priority from **rule length**, so that `/` router can out-rank a bare
@@ -346,6 +354,17 @@ spec:
   tls:
     secretName: banking-tls
 EOF
+```
+
+**Verify:**
+```bash
+kubectl -n argocd get ingressroute argocd
+# NAME     AGE
+# argocd   5s
+
+# confirm it's on the websecure entrypoint and using the TLS Secret:
+kubectl -n argocd get ingressroute argocd -o jsonpath='{.spec.entryPoints} {.spec.tls.secretName}{"\n"}'
+# [websecure] banking-tls
 ```
 
 ### 5c — Grafana / Prometheus / Alertmanager IngressRoutes (HTTPS)
@@ -391,6 +410,33 @@ spec:
   tls: { secretName: banking-tls }
 EOF
 ```
+
+**Verify all three HTTPS routes:**
+```bash
+kubectl -n observability get ingressroute
+# NAME                AGE
+# alertmanager        5s      ← websecure (this step)
+# grafana             5s      ← websecure (this step)
+# prometheus          5s      ← websecure (this step)
+# alertmanager-http   …       ← the Phase 6 http routes (delete after this step)
+# grafana-http        …
+# prometheus-http     …
+
+# confirm each new one is websecure + TLS:
+for r in grafana prometheus alertmanager; do
+  echo -n "$r: "
+  kubectl -n observability get ingressroute $r -o jsonpath='{.spec.entryPoints} {.spec.tls.secretName}{"\n"}'
+done
+# grafana: [websecure] banking-tls
+# prometheus: [websecure] banking-tls
+# alertmanager: [websecure] banking-tls
+```
+
+> 🧹 Now that the `websecure` routes exist, **delete the Phase 6 HTTP routes** so
+> they don't linger (Step 7's redirect would otherwise loop them to HTTPS anyway):
+> ```bash
+> kubectl -n observability delete ingressroute grafana-http prometheus-http alertmanager-http
+> ```
 
 ---
 
