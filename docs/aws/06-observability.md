@@ -217,20 +217,37 @@ Expected: a non-zero `up` count, a `traces` array from Tempo, and
 
 ---
 
-## Step 5 — Access Grafana
+## Step 5 — Access Grafana / Prometheus / Alertmanager (via your domain)
 
-**Via Traefik (recommended, after Phase 7):** `https://vijaygiduthuri.in/grafana`
-— Phase 7 sets `serve_from_sub_path` + the IngressRoute so Grafana serves under
-the `/grafana` sub-path on the single app host.
+All three are served on the **single apex host** under sub-paths — same pattern as
+the app UI and Argo CD, no port-forward. The `/grafana`, `/prometheus`, and
+`/alertmanager` routes (Traefik IngressRoutes + the `serve_from_sub_path` /
+`routePrefix` serving config each app needs) are created in **Phase 7**
+([07-https-tls.md](07-https-tls.md)) — so finish Phase 7, then open these in your
+browser:
 
-**Port-forward (any time, no ingress needed):**
+| Tool         | URL                                      | Login             |
+|--------------|------------------------------------------|-------------------|
+| Grafana      | `https://vijaygiduthuri.in/grafana`      | `admin` / `admin` |
+| Prometheus   | `https://vijaygiduthuri.in/prometheus`   | none              |
+| Alertmanager | `https://vijaygiduthuri.in/alertmanager` | none              |
+
+> HTTP auto-redirects to HTTPS, so typing `http://…` still lands on the secure
+> URL. Traefik ranks these sub-path routers above the SPA's `/` router (priority
+> set in Phase 7), so they don't get swallowed by the frontend.
+
+**Quick health check from the terminal:**
 ```bash
-kubectl -n observability port-forward svc/kube-prometheus-stack-grafana 3000:80
-# http://localhost:3000   (admin / admin — see note below)
+curl -sI https://vijaygiduthuri.in/grafana/login      | head -1   # HTTP/2 200
+curl -s  https://vijaygiduthuri.in/prometheus/-/healthy           # Prometheus Server is Healthy.
+curl -s  https://vijaygiduthuri.in/alertmanager/-/healthy         # OK
 ```
 
-> 🔑 Login is `admin` / **`admin`** (our `grafana.adminPassword: admin` in
+> 🔑 Grafana login is `admin` / **`admin`** (our `grafana.adminPassword: admin` in
 > `values/kube-prometheus-stack.yaml`). Change it for anything real.
+>
+> ⚠️ **Prometheus and Alertmanager have no login** — on this learning cluster we
+> expose them openly (see the security note in Step 6).
 >
 > ⚠️ **Grafana here has no PVC (ephemeral).** Its SQLite DB lives on `emptyDir`,
 > so **anything changed in the UI — the admin password, hand-built dashboards —
