@@ -220,11 +220,96 @@ Expected: a non-zero `up` count, a `traces` array from Tempo, and
 ## Step 5 — Access Grafana / Prometheus / Alertmanager (via your domain)
 
 All three are served on the **single apex host** under sub-paths — same pattern as
-the app UI and Argo CD, no port-forward. The `/grafana`, `/prometheus`, and
-`/alertmanager` routes (Traefik IngressRoutes + the `serve_from_sub_path` /
-`routePrefix` serving config each app needs) are created in **Phase 7**
-([07-https-tls.md](07-https-tls.md)) — so finish Phase 7, then open these in your
-browser:
+the app UI and Argo CD, no port-forward. Each app already knows how to serve under
+its sub-path (`serve_from_sub_path` for Grafana, `routePrefix` for
+Prometheus/Alertmanager — set in `values/kube-prometheus-stack.yaml`), so the
+**only missing piece is a Traefik IngressRoute per tool**.
+
+### 5a — Access over HTTP right now (Phase 6, before TLS)
+
+Before Phase 7 sets up TLS, you can reach all three over **HTTP** immediately —
+exactly like `http://vijaygiduthuri.in/argocd` works today. Create one IngressRoute
+per tool on the **`web`** (HTTP) entrypoint. `priority: 100` makes each sub-path
+router beat the app's `/` router (Traefik ranks routers by rule length, so without
+this every path falls through to the frontend SPA):
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana-http
+  namespace: observability
+spec:
+  entryPoints: [web]
+  routes:
+    - match: Host(`vijaygiduthuri.in`) && PathPrefix(`/grafana`)
+      kind: Rule
+      priority: 100
+      services:
+        - name: kube-prometheus-stack-grafana
+          port: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus-http
+  namespace: observability
+spec:
+  entryPoints: [web]
+  routes:
+    - match: Host(`vijaygiduthuri.in`) && PathPrefix(`/prometheus`)
+      kind: Rule
+      priority: 100
+      services:
+        - name: kube-prometheus-stack-prometheus
+          port: 9090
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: alertmanager-http
+  namespace: observability
+spec:
+  entryPoints: [web]
+  routes:
+    - match: Host(`vijaygiduthuri.in`) && PathPrefix(`/alertmanager`)
+      kind: Rule
+      priority: 100
+      services:
+        - name: kube-prometheus-stack-alertmanager
+          port: 9093
+EOF
+```
+
+Then open in your browser (or curl to verify — check the **body**, not just status,
+since the SPA returns `200` for any path):
+
+| Tool         | URL                                     | Login             |
+|--------------|-----------------------------------------|-------------------|
+| Grafana      | `http://vijaygiduthuri.in/grafana`      | `admin` / `admin` |
+| Prometheus   | `http://vijaygiduthuri.in/prometheus`   | none              |
+| Alertmanager | `http://vijaygiduthuri.in/alertmanager` | none              |
+
+```bash
+curl -s  http://vijaygiduthuri.in/prometheus/-/healthy       # Prometheus Server is Healthy.
+curl -s  http://vijaygiduthuri.in/alertmanager/-/healthy     # OK
+curl -s  http://vijaygiduthuri.in/grafana/api/health         # {"database":"ok", ...}  (JSON, not HTML)
+```
+
+> ℹ️ These are **manually applied**, not managed by Argo CD (kept out of GitOps on
+> purpose — Phase 7 replaces them with the HTTPS versions below). If you tear down
+> and redeploy, re-run this `kubectl apply`.
+>
+> ⚠️ Once you do **Phase 7**, the `web` entrypoint gets an HTTP→HTTPS redirect, so
+> these HTTP URLs will start redirecting to `https://…`. That's expected — switch
+> to the HTTPS URLs in 5b at that point (you can delete these three `*-http`
+> IngressRoutes then, since Phase 7 creates `websecure` ones).
+
+### 5b — Access over HTTPS (after Phase 7)
+
+Once **Phase 7** ([07-https-tls.md](07-https-tls.md)) is done, the same three tools
+are served over **HTTPS** via `websecure` IngressRoutes (with TLS):
 
 | Tool         | URL                                      | Login             |
 |--------------|------------------------------------------|-------------------|
@@ -232,9 +317,7 @@ browser:
 | Prometheus   | `https://vijaygiduthuri.in/prometheus`   | none              |
 | Alertmanager | `https://vijaygiduthuri.in/alertmanager` | none              |
 
-> HTTP auto-redirects to HTTPS, so typing `http://…` still lands on the secure
-> URL. Traefik ranks these sub-path routers above the SPA's `/` router (priority
-> set in Phase 7), so they don't get swallowed by the frontend.
+> HTTP auto-redirects to HTTPS, so typing `http://…` still lands on the secure URL.
 
 **Quick health check from the terminal:**
 ```bash
