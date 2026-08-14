@@ -80,7 +80,7 @@ system:serviceaccount:velero:velero   (aud: sts.amazonaws.com)
 
 ## Prerequisites
 - The **EKS cluster `banking-dev` exists** (this stack reads its OIDC provider).
-- The **state bucket** `banking-platform-tfstate-118178010323` exists (created in Phase 1).
+- The **state bucket** `backend-terraform-store123` exists (created in Phase 1).
 - AWS credentials configured; Terraform ≥ 1.10.
 
 ## Usage

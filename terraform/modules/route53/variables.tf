@@ -1,5 +1,5 @@
 variable "domain_name" {
-  description = "Apex domain to host in Route 53 (e.g. vijaygiduthuri.in). No subdomain."
+  description = "Apex domain to host in Route 53 (e.g. eeshas.in). No subdomain."
   type        = string
 }
 

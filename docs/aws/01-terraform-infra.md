@@ -77,8 +77,8 @@ only create the **one bucket** before the first `init`:
 
 ```bash
 REGION=us-east-1
-aws s3api create-bucket --bucket banking-platform-tfstate-118178010323 --region $REGION
-aws s3api put-bucket-versioning --bucket banking-platform-tfstate-118178010323 \
+aws s3api create-bucket --bucket backend-terraform-store123 --region $REGION
+aws s3api put-bucket-versioning --bucket backend-terraform-store123 \
   --versioning-configuration Status=Enabled
 ```
 
@@ -133,7 +133,7 @@ Sensible defaults are set; the ones you might change:
 | `node_min/max/desired`| `3 / 6 / 4`          | Managed node group autoscaling bounds                |
 | `single_nat_gateway`  | `true`               | One NAT (cheap) for dev; prod uses one per AZ        |
 | `ecr_repository_name` | `banking-platform`   | The single ECR repo all services push to             |
-| `domain_name`         | `vijaygiduthuri.in`  | Apex domain hosted in Route 53 (delegated from GoDaddy) |
+| `domain_name`         | `eeshas.in`          | Apex domain hosted in Route 53 (delegated from GoDaddy) |
 | `create_apex_record`  | `false`              | Phase 5 flips this to `true` to add the apex ALIAS → NLB |
 
 > 💡 **Sizing reality:** 30 Go services + gateway + Postgres/Redis/Kafka +

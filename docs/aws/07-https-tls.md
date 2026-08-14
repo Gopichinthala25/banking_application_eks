@@ -7,18 +7,18 @@ your domain, flip the app to **HTTPS**, and move Argo CD + Grafana + Prometheus
 + Alertmanager over to HTTPS too — so you finish with:
 
 ```
-https://vijaygiduthuri.in                — the banking app UI
-https://vijaygiduthuri.in/argocd         — Argo CD UI
-https://vijaygiduthuri.in/grafana        — Grafana
-https://vijaygiduthuri.in/prometheus     — Prometheus
-https://vijaygiduthuri.in/alertmanager   — Alertmanager
+https://eeshas.in                — the banking app UI
+https://eeshas.in/argocd         — Argo CD UI
+https://eeshas.in/grafana        — Grafana
+https://eeshas.in/prometheus     — Prometheus
+https://eeshas.in/alertmanager   — Alertmanager
 ```
 
 **Time:** ~15 minutes (most of it Let's Encrypt issuing the cert).
 
 > Set this once and reuse it below:
 > ```bash
-> export HOSTNAME_APP="vijaygiduthuri.in"     # 👈 your apex domain (from Phase 5)
+> export HOSTNAME_APP="eeshas.in"     # 👈 your apex domain (from Phase 5)
 > export ACME_EMAIL="vijaygiduthuri@gmail.com"        # 👈 Let's Encrypt expiry notices
 > ```
 
@@ -43,7 +43,7 @@ at ~day 75).
   Certificate → Secret "banking-tls" (banking ns)   ← created automatically by
                  │                                     cert-manager's ingress-shim
                  ▼                                     from the app's Ingress
-  Traefik serves TLS on :443 for vijaygiduthuri.in
+  Traefik serves TLS on :443 for eeshas.in
   (the same Secret is copied to argocd/observability for their routes)
 ```
 
@@ -203,7 +203,7 @@ The chart's `ingress` block in `deploy/helm/banking-platform/values.yaml` is
 ingress:
   enabled: true
   className: traefik
-  host: vijaygiduthuri.in          # from Phase 5
+  host: eeshas.in          # from Phase 5
   tls: true                         # cert-manager auto-issues banking-tls
   tlsSecretName: banking-tls
   clusterIssuer: letsencrypt-prod
@@ -255,18 +255,18 @@ breakage — the mirror image of the Phase 6 problem):
 grafana:
   grafana.ini:
     server:
-      root_url: "https://vijaygiduthuri.in/grafana"   # was http:// in Phase 6
+      root_url: "https://eeshas.in/grafana"   # was http:// in Phase 6
       serve_from_sub_path: true
 
 prometheus:
   prometheusSpec:
     routePrefix: /prometheus
-    externalUrl: https://vijaygiduthuri.in/prometheus  # was http:// in Phase 6
+    externalUrl: https://eeshas.in/prometheus  # was http:// in Phase 6
 
 alertmanager:
   alertmanagerSpec:
     routePrefix: /alertmanager
-    externalUrl: https://vijaygiduthuri.in/alertmanager  # was http:// in Phase 6
+    externalUrl: https://eeshas.in/alertmanager  # was http:// in Phase 6
 ```
 
 Commit → Argo re-syncs the `kube-prometheus-stack` app. (Argo CD itself already
@@ -452,11 +452,11 @@ curl -sL  "https://$D/alertmanager/-/ready"            # OK   (Alertmanager)
 ```
 
 Open each in a browser — expect the **🔒 padlock** (Let's Encrypt issuer):
-- https://vijaygiduthuri.in/            → banking UI
-- https://vijaygiduthuri.in/argocd/     → Argo CD (admin / your password)
-- https://vijaygiduthuri.in/grafana/    → Grafana (admin / admin)
-- https://vijaygiduthuri.in/prometheus/ → Prometheus
-- https://vijaygiduthuri.in/alertmanager/ → Alertmanager
+- https://eeshas.in/            → banking UI
+- https://eeshas.in/argocd/     → Argo CD (admin / your password)
+- https://eeshas.in/grafana/    → Grafana (admin / admin)
+- https://eeshas.in/prometheus/ → Prometheus
+- https://eeshas.in/alertmanager/ → Alertmanager
 
 ---
 
@@ -489,7 +489,7 @@ Verify:
 ```bash
 curl -sI "http://${HOSTNAME_APP}/" | awk '/^HTTP|^[Ll]ocation:/'
 # HTTP/1.1 308 Permanent Redirect
-# Location: https://vijaygiduthuri.in/
+# Location: https://eeshas.in/
 curl -s -o /dev/null -w "%{http_code}\n" "https://${HOSTNAME_APP}/"   # 200
 ```
 
@@ -540,11 +540,11 @@ done
 - ✅ **All 5 UIs** (app, Argo CD, Grafana, Prometheus, Alertmanager) on the **same domain** over HTTPS
 
 ```
-https://vijaygiduthuri.in                🏦 the app
-https://vijaygiduthuri.in/argocd         🚀 GitOps controller
-https://vijaygiduthuri.in/grafana        📊 dashboards
-https://vijaygiduthuri.in/prometheus     📈 metrics
-https://vijaygiduthuri.in/alertmanager   🚨 alerts
+https://eeshas.in                🏦 the app
+https://eeshas.in/argocd         🚀 GitOps controller
+https://eeshas.in/grafana        📊 dashboards
+https://eeshas.in/prometheus     📈 metrics
+https://eeshas.in/alertmanager   🚨 alerts
 ```
 
 ---

@@ -228,7 +228,7 @@ Prometheus/Alertmanager — set in `values/kube-prometheus-stack.yaml`), so the
 ### 5a — Access over HTTP right now (Phase 6, before TLS)
 
 Before Phase 7 sets up TLS, you can reach all three over **HTTP** immediately —
-exactly like `http://vijaygiduthuri.in/argocd` works today. Create one IngressRoute
+exactly like `http://eeshas.in/argocd` works today. Create one IngressRoute
 per tool on the **`web`** (HTTP) entrypoint. `priority: 100` makes each sub-path
 router beat the app's `/` router (Traefik ranks routers by rule length, so without
 this every path falls through to the frontend SPA):
@@ -243,7 +243,7 @@ metadata:
 spec:
   entryPoints: [web]
   routes:
-    - match: Host(`vijaygiduthuri.in`) && PathPrefix(`/grafana`)
+    - match: Host(`eeshas.in`) && PathPrefix(`/grafana`)
       kind: Rule
       priority: 100
       services:
@@ -258,7 +258,7 @@ metadata:
 spec:
   entryPoints: [web]
   routes:
-    - match: Host(`vijaygiduthuri.in`) && PathPrefix(`/prometheus`)
+    - match: Host(`eeshas.in`) && PathPrefix(`/prometheus`)
       kind: Rule
       priority: 100
       services:
@@ -273,7 +273,7 @@ metadata:
 spec:
   entryPoints: [web]
   routes:
-    - match: Host(`vijaygiduthuri.in`) && PathPrefix(`/alertmanager`)
+    - match: Host(`eeshas.in`) && PathPrefix(`/alertmanager`)
       kind: Rule
       priority: 100
       services:
@@ -299,14 +299,14 @@ since the SPA returns `200` for any path):
 
 | Tool         | URL                                     | Login             |
 |--------------|-----------------------------------------|-------------------|
-| Grafana      | `http://vijaygiduthuri.in/grafana`      | `admin` / `admin` |
-| Prometheus   | `http://vijaygiduthuri.in/prometheus`   | none              |
-| Alertmanager | `http://vijaygiduthuri.in/alertmanager` | none              |
+| Grafana      | `http://eeshas.in/grafana`      | `admin` / `admin` |
+| Prometheus   | `http://eeshas.in/prometheus`   | none              |
+| Alertmanager | `http://eeshas.in/alertmanager` | none              |
 
 ```bash
-curl -s  http://vijaygiduthuri.in/prometheus/-/healthy       # Prometheus Server is Healthy.
-curl -s  http://vijaygiduthuri.in/alertmanager/-/healthy     # OK
-curl -s  http://vijaygiduthuri.in/grafana/api/health         # {"database":"ok", ...}  (JSON, not HTML)
+curl -s  http://eeshas.in/prometheus/-/healthy       # Prometheus Server is Healthy.
+curl -s  http://eeshas.in/alertmanager/-/healthy     # OK
+curl -s  http://eeshas.in/grafana/api/health         # {"database":"ok", ...}  (JSON, not HTML)
 ```
 
 > ⚠️ **The scheme in the values file must match how you browse.** Grafana embeds
@@ -321,14 +321,14 @@ curl -s  http://vijaygiduthuri.in/grafana/api/health         # {"database":"ok",
 > ```yaml
 > prometheus:
 >   prometheusSpec:
->     externalUrl: http://vijaygiduthuri.in/prometheus   # http for Phase 6; Phase 7 flips to https
+>     externalUrl: http://eeshas.in/prometheus   # http for Phase 6; Phase 7 flips to https
 > alertmanager:
 >   alertmanagerSpec:
->     externalUrl: http://vijaygiduthuri.in/alertmanager
+>     externalUrl: http://eeshas.in/alertmanager
 > grafana:
 >   grafana.ini:
 >     server:
->       root_url: http://vijaygiduthuri.in/grafana
+>       root_url: http://eeshas.in/grafana
 >       serve_from_sub_path: true
 > ```
 > This file **is** managed by Argo CD, so after editing it just `git push` and Argo
@@ -351,17 +351,17 @@ are served over **HTTPS** via `websecure` IngressRoutes (with TLS):
 
 | Tool         | URL                                      | Login             |
 |--------------|------------------------------------------|-------------------|
-| Grafana      | `https://vijaygiduthuri.in/grafana`      | `admin` / `admin` |
-| Prometheus   | `https://vijaygiduthuri.in/prometheus`   | none              |
-| Alertmanager | `https://vijaygiduthuri.in/alertmanager` | none              |
+| Grafana      | `https://eeshas.in/grafana`      | `admin` / `admin` |
+| Prometheus   | `https://eeshas.in/prometheus`   | none              |
+| Alertmanager | `https://eeshas.in/alertmanager` | none              |
 
 > HTTP auto-redirects to HTTPS, so typing `http://…` still lands on the secure URL.
 
 **Quick health check from the terminal:**
 ```bash
-curl -sI https://vijaygiduthuri.in/grafana/login      | head -1   # HTTP/2 200
-curl -s  https://vijaygiduthuri.in/prometheus/-/healthy           # Prometheus Server is Healthy.
-curl -s  https://vijaygiduthuri.in/alertmanager/-/healthy         # OK
+curl -sI https://eeshas.in/grafana/login      | head -1   # HTTP/2 200
+curl -s  https://eeshas.in/prometheus/-/healthy           # Prometheus Server is Healthy.
+curl -s  https://eeshas.in/alertmanager/-/healthy         # OK
 ```
 
 > 🔑 Grafana login is `admin` / **`admin`** (our `grafana.adminPassword: admin` in
@@ -392,7 +392,7 @@ Explore:
 ## Step 6 — Exposing Grafana / Prometheus / Alertmanager (sub-paths)
 
 HTTPS routes for `/grafana`, `/prometheus`, `/alertmanager` under
-`vijaygiduthuri.in` — plus the sub-path serving config each app needs
+`eeshas.in` — plus the sub-path serving config each app needs
 (`serve_from_sub_path`, `routePrefix`) — are configured in **Phase 7**
 (Traefik IngressRoutes + TLS), so everything lives on the single app host.
 
@@ -437,7 +437,7 @@ Once everything's running, here's a hand-picked set of PromQL queries that
 exercise the metrics **our** setup actually exposes — useful for debugging or
 just exploring.
 
-Open the Prometheus UI at **`https://vijaygiduthuri.in/prometheus/`**, paste a
+Open the Prometheus UI at **`https://eeshas.in/prometheus/`**, paste a
 query into the Expression box, and click **Execute** (the ▷ play icon). Results
 appear in the **Table** tab.
 
@@ -492,7 +492,7 @@ sum by (service) (rate(http_requests_total{namespace="banking", status=~"5.."}[5
 ```
 Should be `0` / very low on a healthy cluster. An **empty result is the healthy
 state** — `rate()` returns no series when no 5xx happened in the window. To force
-a row for testing, hit a bad endpoint: `curl -X POST https://vijaygiduthuri.in/api/v1/auth/login -d 'bogus'`.
+a row for testing, hit a bad endpoint: `curl -X POST https://eeshas.in/api/v1/auth/login -d 'bogus'`.
 
 **Query 7 — Error percentage per service**
 ```promql
@@ -566,7 +566,7 @@ signal. (We rely on kube-prometheus-stack's default alert rules — no custom
 
 ## Alertmanager
 
-Open **`https://vijaygiduthuri.in/alertmanager/`** to see firing alerts, silences,
+Open **`https://eeshas.in/alertmanager/`** to see firing alerts, silences,
 and history. On a healthy cluster only the `Watchdog` heartbeat is active.
 
 To make an alert **actually fire** (for testing), push a Deployment into

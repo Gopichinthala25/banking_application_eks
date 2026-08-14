@@ -44,8 +44,8 @@ terraform apply
 
 ```bash
 REGION=us-east-1
-aws s3api create-bucket --bucket banking-platform-tfstate-118178010323 --region $REGION
-aws s3api put-bucket-versioning --bucket banking-platform-tfstate-118178010323 \
+aws s3api create-bucket --bucket backend-terraform-store123 --region $REGION
+aws s3api put-bucket-versioning --bucket backend-terraform-store123 \
   --versioning-configuration Status=Enabled
 ```
 
@@ -57,7 +57,7 @@ line in each:
 ```hcl
 terraform {
   backend "s3" {
-    bucket       = "banking-platform-tfstate-118178010323"   # 👈 your bucket name (must match the one you created)
+    bucket       = "backend-terraform-store123"   # 👈 your bucket name (must match the one you created)
     key          = "dev/networking.tfstate"     #    per-env state path
     region       = "us-east-1"
     use_lockfile = true

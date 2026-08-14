@@ -19,7 +19,7 @@
 This is a **learning / portfolio reference project**. It intentionally
 **self-hosts its data stores (PostgreSQL, Redis, Kafka) in-cluster** rather than
 using managed AWS data services, uses **Traefik** for ingress, and is served on
-a real domain over HTTPS (`https://vijaygiduthuri.in`).
+a real domain over HTTPS (`https://eeshas.in`).
 
 ---
 
@@ -66,7 +66,7 @@ flowchart TB
 
     user([Browser])
     le[("Let's Encrypt ACME")]
-    gd[(GoDaddy → Route 53<br/>vijaygiduthuri.in)]
+    gd[(GoDaddy → Route 53<br/>eeshas.in)]
 
     subgraph cluster["Amazon EKS - banking-dev (us-east-1)"]
         direction TB
@@ -263,12 +263,12 @@ OTel Collector), `velero`, and `kube-system` (EBS CSI, metrics-server).
 
 ### Live URLs (single apex host, path-routed, HTTPS)
 ```
-https://vijaygiduthuri.in/              🏦 app (React)
-https://vijaygiduthuri.in/api           REST API (gateway)
-https://vijaygiduthuri.in/argocd/       🚀 Argo CD
-https://vijaygiduthuri.in/grafana/      📊 Grafana (metrics · logs · traces)
-https://vijaygiduthuri.in/prometheus/   📈 Prometheus
-https://vijaygiduthuri.in/alertmanager/ 🚨 Alertmanager
+https://eeshas.in/              🏦 app (React)
+https://eeshas.in/api           REST API (gateway)
+https://eeshas.in/argocd/       🚀 Argo CD
+https://eeshas.in/grafana/      📊 Grafana (metrics · logs · traces)
+https://eeshas.in/prometheus/   📈 Prometheus
+https://eeshas.in/alertmanager/ 🚨 Alertmanager
 ```
 
 ---

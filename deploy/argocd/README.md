@@ -24,7 +24,7 @@ deploy/argocd/
 ## 1. Repo URL & credentials
 
 Every Application already points at this repo:
-`https://github.com/vijaygiduthuri/banking_application_eks.git`.
+`https://github.com/Gopichinthala25/banking_application_eks.git`.
 
 > **Private repo?** Argo CD needs read credentials or it can't clone. Add a
 > labeled `repository` Secret (HTTPS + a classic PAT) — see

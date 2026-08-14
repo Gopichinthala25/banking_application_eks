@@ -1,4 +1,4 @@
-# Route 53 DNS for the platform's APEX domain (e.g. vijaygiduthuri.in).
+# Route 53 DNS for the platform's APEX domain (e.g. eeshas.in).
 #
 # Two-stage lifecycle (because the apex record targets the Traefik NLB, which
 # only exists AFTER Traefik is installed in the cluster):

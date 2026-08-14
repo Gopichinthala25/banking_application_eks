@@ -10,7 +10,7 @@ metadata:
 spec:
   project: banking
   source:
-    repoURL: "https://github.com/vijaygiduthuri/banking_application_eks.git"
+    repoURL: "https://github.com/Gopichinthala25/banking_application_eks.git"
     targetRevision: main
     path: deploy/helm/banking-platform
     helm:

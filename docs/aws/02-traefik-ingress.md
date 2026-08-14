@@ -195,7 +195,7 @@ The hostname **only changes if the `traefik` Service is deleted and recreated**
   kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'; echo
   ```
 
-> We serve the platform on the **apex** `vijaygiduthuri.in`. Since GoDaddy DNS
+> We serve the platform on the **apex** `eeshas.in`. Since GoDaddy DNS
 > can't put a `CNAME`/`ALIAS` on the apex, Phase 5 delegates DNS to **Route 53**
 > and uses a Route 53 **ALIAS** record that tracks this NLB automatically — no
 > Elastic IPs and no AWS Load Balancer Controller needed.

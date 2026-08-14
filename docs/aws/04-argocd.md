@@ -194,8 +194,8 @@ metadata:
     argocd.argoproj.io/secret-type: repository   # how repo-server discovers creds
 stringData:
   type: git
-  url: https://github.com/vijaygiduthuri/banking_application_eks.git
-  username: vijaygiduthuri
+  url: https://github.com/Gopichinthala25/banking_application_eks.git
+  username: Gopichinthala25
   password: ${GH_PAT}
 EOF
 ```
@@ -220,7 +220,7 @@ from `deploy/argocd/apps/`.
 ### 5a — Repo URL (already set)
 
 Every Application already points at
-`https://github.com/vijaygiduthuri/banking_application_eks.git` (committed under
+`https://github.com/Gopichinthala25/banking_application_eks.git` (committed under
 `deploy/argocd/`). Nothing to edit — just make sure Argo CD has read credentials
 for it (Step 4) if the repo is private.
 
@@ -242,7 +242,7 @@ step shows **what those committed files contain** (identical YAML, for reference
 <summary>AppProject + banking-platform Application (contents of the committed files)</summary>
 
 ```bash
-export REPO_URL="https://github.com/vijaygiduthuri/banking_application_eks.git"
+export REPO_URL="https://github.com/Gopichinthala25/banking_application_eks.git"
 export REVISION="main"
 ```
 
@@ -449,17 +449,17 @@ kubectl describe application <app> -n argocd | sed -n '/Status:/,$p'
 Smoke test once green (through the gateway):
 ```bash
 NLB=$(kubectl -n traefik get svc traefik -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-TOKEN=$(curl -s -X POST http://$NLB/api/v1/auth/register -H "Host: vijaygiduthuri.in" \
+TOKEN=$(curl -s -X POST http://$NLB/api/v1/auth/register -H "Host: eeshas.in" \
   -d '{"email":"gitops@bank.io","password":"password123"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 echo "token len: ${#TOKEN}"
 ```
-(Once DNS is set in Phase 5 you'll use `https://vijaygiduthuri.in` directly.)
+(Once DNS is set in Phase 5 you'll use `https://eeshas.in` directly.)
 
 ---
 
 ## A note on routing (path-based, single apex host)
 
-This doc set serves **everything on the apex `vijaygiduthuri.in`** with
+This doc set serves **everything on the apex `eeshas.in`** with
 **path-based routing** — no subdomains. Argo CD lives at **`/argocd`** on the
 shared Traefik NLB (one LB, one Route 53 apex ALIAS — see docs 05 and 07),
 alongside the app at `/` and (Phase 7) Grafana/Prometheus/Alertmanager at
@@ -472,7 +472,7 @@ single TLS cert and needs no extra DNS records.
 
 | Symptom | Likely cause | Fix |
 | ------- | ------------ | --- |
-| App `ComparisonError: SSH agent requested but SSH_AUTH_SOCK not-specified` | `repoURL` is the `git@github.com:…` SSH form but the Secret holds an HTTPS PAT | Use `https://github.com/vijaygiduthuri/banking_application_eks.git` in the Secret **and** the Application. |
+| App `ComparisonError: SSH agent requested but SSH_AUTH_SOCK not-specified` | `repoURL` is the `git@github.com:…` SSH form but the Secret holds an HTTPS PAT | Use `https://github.com/Gopichinthala25/banking_application_eks.git` in the Secret **and** the Application. |
 | GitHub API `HTTP 404` for `/repos/<you>/<repo>` with a valid PAT | Fine-grained PAT missing this repo in its allowlist | Add the repo to the token, or use a **classic** PAT with `repo` scope. |
 | App permanently `OutOfSync` with only `StatefulSet/postgres` + `StatefulSet/kafka` differing | `volumeClaimTemplates` is immutable after creation | Keep the `ignoreDifferences` block + `RespectIgnoreDifferences=true` (already in Step 5). |
 | Many service pods `CrashLoopBackOff` right after sync | Services started before Postgres/Kafka DNS resolved (fail-fast exit) | **Expected.** Wait ~60–90 s. If still crashing after 2 min, `kubectl logs <pod> --previous` for a real error. |

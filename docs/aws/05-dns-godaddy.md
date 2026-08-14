@@ -2,18 +2,18 @@
 
 > **Status:** ✅ Written *as we do it* on the EKS cluster.
 
-**Goal:** Serve the platform on the **bare apex `vijaygiduthuri.in`** (no
+**Goal:** Serve the platform on the **bare apex `eeshas.in`** (no
 subdomain), with the Route 53 hosted zone and the apex record **managed by
 Terraform**, and a one-time **manual GoDaddy nameserver delegation**.
 
 **Time:** ~20 min (most of it waiting for nameserver delegation to propagate).
 
 > Before: `http://k8s-traefik-….elb.us-east-1.amazonaws.com/`
-> After:  `http://vijaygiduthuri.in/`  and  `http://vijaygiduthuri.in/argocd/`
+> After:  `http://eeshas.in/`  and  `http://eeshas.in/argocd/`
 
 > Set this once and reuse it in every command below:
 > ```bash
-> export HOSTNAME_APP="vijaygiduthuri.in"   # 👈 your apex domain
+> export HOSTNAME_APP="eeshas.in"   # 👈 your apex domain
 > ```
 
 ---
@@ -26,7 +26,7 @@ k8s-traefik-traefik-abc123.elb.us-east-1.amazonaws.com
 ```
 DNS rules mean:
 - A **subdomain** (`app`, `grafana`…) could `CNAME` to that hostname. ✅
-- The **apex** (`vijaygiduthuri.in`) **cannot** be a `CNAME` — and **GoDaddy DNS
+- The **apex** (`eeshas.in`) **cannot** be a `CNAME` — and **GoDaddy DNS
   has no `ALIAS`/`ANAME`** record to work around it. ❌
 
 We want the **apex**, so DNS is hosted in **Amazon Route 53**, which has a
@@ -34,7 +34,7 @@ special **ALIAS** record that *can* sit on the apex and point at an NLB.
 **GoDaddy stays the registrar** — we only delegate its nameservers to Route 53.
 
 ```
-GoDaddy (registrar)  --delegate NS-->  Route 53 hosted zone (vijaygiduthuri.in)
+GoDaddy (registrar)  --delegate NS-->  Route 53 hosted zone (eeshas.in)
    (manual, once)                            │  ALIAS A  @  ->  Traefik NLB
                                              ▼        (Terraform)
                                        Traefik NLB  ->  cluster
@@ -127,7 +127,7 @@ Confirm the plan adds:
 then approve. Verify:
 ```bash
 terraform -chdir=terraform/environments/dev output apex_fqdn
-# "vijaygiduthuri.in"
+# "eeshas.in"
 ```
 
 > 💡 **ALIAS, not CNAME.** The ALIAS is resolved by Route 53 itself — it returns
@@ -148,11 +148,11 @@ dig +short ${HOSTNAME_APP}
 # → the NLB's IP addresses (ALIAS resolves server-side, so you see A records, not a CNAME)
 
 nslookup ${HOSTNAME_APP}
-# Non-authoritative answer: Name: vijaygiduthuri.in  Address: 52.x.x.x (and more)
+# Non-authoritative answer: Name: eeshas.in  Address: 52.x.x.x (and more)
 ```
 
 If they disagree across regions, check https://dnschecker.org (paste
-`vijaygiduthuri.in`). Then a quick HTTP probe:
+`eeshas.in`). Then a quick HTTP probe:
 
 ```bash
 curl -sI -o /dev/null -w "%{http_code}\n" "http://${HOSTNAME_APP}/"
@@ -174,13 +174,13 @@ set it:
 ingress:
   enabled: true                 # 👈 turn on for EKS
   className: traefik
-  host: vijaygiduthuri.in       # 👈 YOUR apex domain
+  host: eeshas.in               # 👈 YOUR apex domain
   tls: false                    # Phase 7 flips this to true
   tlsSecretName: banking-tls
   clusterIssuer: letsencrypt-prod
 ```
 
-That one Ingress routes, on `vijaygiduthuri.in`:
+That one Ingress routes, on `eeshas.in`:
 - `/api` → `api-gateway`
 - `/` → `frontend`
 
@@ -196,7 +196,7 @@ frontend:
 
 > **Argo CD** is already reachable at `/argocd` on the same NLB (Phase 4's
 > IngressRoute matches the `/argocd` path on any host), so
-> `http://vijaygiduthuri.in/argocd/` will work too — the more-specific
+> `http://eeshas.in/argocd/` will work too — the more-specific
 > `/argocd` route wins over the app's `/` route.
 
 ---
@@ -205,7 +205,7 @@ frontend:
 
 ```bash
 git add deploy/helm/banking-platform/values.yaml
-git commit -m "phase 5: expose the platform on vijaygiduthuri.in"
+git commit -m "phase 5: expose the platform on eeshas.in"
 git push origin main
 ```
 
@@ -242,8 +242,8 @@ Expect `200` for all three.
 > ```
 
 Open in a browser:
-- **App:** http://vijaygiduthuri.in/
-- **Argo CD:** http://vijaygiduthuri.in/argocd/  (trailing slash required)
+- **App:** http://eeshas.in/
+- **Argo CD:** http://eeshas.in/argocd/  (trailing slash required)
 
 ---
 
@@ -298,7 +298,7 @@ the same NLB and needs no re-apply.
 | `curl -I` (HEAD) 404 but GET 200 | Some routes have no HEAD handler | Expected — real traffic is GET. Test with GET. |
 | Argo `Synced` but old behaviour | Polled an old revision | `kubectl -n argocd annotate app banking-platform argocd.argoproj.io/refresh=hard --overwrite`. |
 | DNS resolves to a dead NLB after reinstalling Traefik | New Service → new NLB | Re-apply Terraform (Step 9). |
-| `vijaygiduthuri.in/argocd/` hits the app, not Argo | `/argocd` IngressRoute missing or lower priority | Confirm Phase 4's IngressRoute exists; `/argocd` (more specific) should win over `/`. |
+| `eeshas.in/argocd/` hits the app, not Argo | `/argocd` IngressRoute missing or lower priority | Confirm Phase 4's IngressRoute exists; `/argocd` (more specific) should win over `/`. |
 
 ---
 
