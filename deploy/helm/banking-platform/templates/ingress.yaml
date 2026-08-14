@@ -36,4 +36,20 @@ spec:
                 name: {{ .Values.frontend.servicename }}
                 port:
                   number: {{ .Values.frontend.port }}
+    - http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.apiGateway.servicename }}
+                port:
+                  number: {{ .Values.apiGateway.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Values.frontend.servicename }}
+                port:
+                  number: {{ .Values.frontend.port }}
 {{- end }}
