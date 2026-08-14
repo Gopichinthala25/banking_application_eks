@@ -116,10 +116,13 @@ jobs:
         id: vars
         run: echo "sha=$(echo "${GITHUB_SHA}" | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
-      # Resolve build context/Dockerfile/args (frontend differs from backends).
+      # Resolve build inputs (frontend differs from backends) and sanitize image prefix
       - name: Resolve build inputs
         id: img
         run: |
+          REGISTRY=$(echo "${{ vars.ECR_REGISTRY }}" | tr -d '[:space:]' | sed 's|/$||')
+          REPO=$(echo "${{ vars.ECR_REPOSITORY || 'banking-platform' }}" | tr -d '[:space:]' | sed 's|^/||')
+          echo "image_prefix=${REGISTRY}/${REPO}" >> "$GITHUB_OUTPUT"
           if [ "${{ matrix.service }}" = "frontend" ]; then
             echo "context=./frontend" >> "$GITHUB_OUTPUT"
             echo "dockerfile=./frontend/Dockerfile" >> "$GITHUB_OUTPUT"
@@ -153,8 +156,8 @@ jobs:
           push: false
           load: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
-            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-latest
+            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
+            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
@@ -162,7 +165,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
-          image-ref: ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
+          image-ref: ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
           format: table
           # exit-code: "1" # would FAIL the build on fixable HIGH/CRITICAL
           exit-code: "0" # report-only: Trivy still scans + prints, never blocks (learning setup)
@@ -180,8 +183,8 @@ jobs:
           build-args: ${{ steps.img.outputs.buildargs }}
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
-            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-latest
+            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
+            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-latest
           cache-from: type=gha,scope=${{ matrix.service }}
 
   # ===========================================================================
@@ -217,6 +220,9 @@ jobs:
           NEW_TAG: ${{ steps.vars.outputs.sha }}
         run: |
           set -euo pipefail
+          REGISTRY=$(echo "${{ vars.ECR_REGISTRY }}" | tr -d '[:space:]' | sed 's|/$||')
+          REPO=$(echo "${{ vars.ECR_REPOSITORY || 'banking-platform' }}" | tr -d '[:space:]' | sed 's|^/||')
+          IMAGE_PREFIX="${REGISTRY}/${REPO}"
           FILE="deploy/helm/banking-platform/values.yaml"
           SERVICES="$(ls services) frontend"
 
