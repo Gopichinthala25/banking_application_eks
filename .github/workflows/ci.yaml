@@ -59,9 +59,9 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  # Full single-repo image prefix, e.g.
-  #   <account>.dkr.ecr.us-east-1.amazonaws.com/banking-platform
-  IMAGE_PREFIX: ${{ vars.ECR_REGISTRY }}/${{ vars.ECR_REPOSITORY }}
+  # Hardcoded to avoid GitHub variable newline injection bug.
+  # Format: <account>.dkr.ecr.<region>.amazonaws.com/<repo-name>
+  IMAGE_PREFIX: "596144666905.dkr.ecr.us-east-1.amazonaws.com/banking-platform"
 
 jobs:
   # ===========================================================================
@@ -116,28 +116,18 @@ jobs:
         id: vars
         run: echo "sha=$(echo "${GITHUB_SHA}" | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
-      # Resolve build inputs (frontend differs from backends) and sanitize image prefix.
-      # IMPORTANT: ECR_REGISTRY/ECR_REPOSITORY are passed via env (not inline ${{ }})
-      # so that any accidental newlines/spaces in the GitHub variable value are stripped
-      # by the shell before they can corrupt the Docker tag string.
+      # Resolve build context/Dockerfile/args (frontend differs from backends).
       - name: Resolve build inputs
         id: img
-        env:
-          _REGISTRY: ${{ vars.ECR_REGISTRY }}
-          _REPO: ${{ vars.ECR_REPOSITORY }}
-          _SERVICE: ${{ matrix.service }}
         run: |
-          REGISTRY=$(printf '%s' "$_REGISTRY" | tr -d '[:space:]' | sed 's|/$||')
-          REPO=$(printf '%s' "${_REPO:-banking-platform}" | tr -d '[:space:]' | sed 's|^/||')
-          echo "image_prefix=${REGISTRY}/${REPO}" >> "$GITHUB_OUTPUT"
-          if [ "$_SERVICE" = "frontend" ]; then
+          if [ "${{ matrix.service }}" = "frontend" ]; then
             echo "context=./frontend" >> "$GITHUB_OUTPUT"
             echo "dockerfile=./frontend/Dockerfile" >> "$GITHUB_OUTPUT"
             echo "buildargs=" >> "$GITHUB_OUTPUT"
           else
             echo "context=." >> "$GITHUB_OUTPUT"
             echo "dockerfile=build/service.Dockerfile" >> "$GITHUB_OUTPUT"
-            echo "buildargs=SERVICE=${_SERVICE}" >> "$GITHUB_OUTPUT"
+            echo "buildargs=SERVICE=${{ matrix.service }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure AWS credentials
@@ -163,8 +153,8 @@ jobs:
           push: false
           load: true
           tags: |
-            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
-            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-latest
+            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
+            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
@@ -172,7 +162,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
-          image-ref: ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
+          image-ref: ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
           format: table
           # exit-code: "1" # would FAIL the build on fixable HIGH/CRITICAL
           exit-code: "0" # report-only: Trivy still scans + prints, never blocks (learning setup)
@@ -190,8 +180,8 @@ jobs:
           build-args: ${{ steps.img.outputs.buildargs }}
           push: true
           tags: |
-            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
-            ${{ steps.img.outputs.image_prefix }}:${{ matrix.service }}-latest
+            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-${{ steps.vars.outputs.sha }}
+            ${{ env.IMAGE_PREFIX }}:${{ matrix.service }}-latest
           cache-from: type=gha,scope=${{ matrix.service }}
 
   # ===========================================================================
